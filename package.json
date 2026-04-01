@@ -3,10 +3,17 @@
   "version": "1.0.0",
   "description": "Django-like full-stack framework with Node.js, Fastify, and Next.js",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
+    "preinstall": "node scripts/check-node.js",
     "install:all": "npm run install:api && npm run install:admin",
     "install:api": "cd api && npm install",
     "install:admin": "cd admin && npm install",
+    "verify": "npm run verify:api && npm run verify:admin",
+    "verify:api": "cd api && npm run build",
+    "verify:admin": "cd admin && npm run build",
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:admin\"",
     "dev:api": "cd api && npm run dev",
     "dev:admin": "cd admin && npm run dev",

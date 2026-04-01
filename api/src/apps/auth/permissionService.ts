@@ -1,4 +1,15 @@
-import { User, Permission, UserPermission, Group, UserGroup, GroupPermission } from './models';
+import {
+    User,
+    Permission,
+    UserPermission,
+    UserGroup,
+    GroupPermission,
+    UserRecord,
+    PermissionRecord,
+    UserPermissionRecord,
+    UserGroupRecord,
+    GroupPermissionRecord
+} from './models';
 
 export class PermissionService {
     /**
@@ -6,25 +17,25 @@ export class PermissionService {
      */
     hasPermission(userId: number, codename: string): boolean {
         // Superusers have all permissions
-        const user = User.objects.get<User>({ id: userId });
+        const user = User.objects.get<UserRecord>({ id: userId });
         if (!user) return false;
         if (user.isSuperuser) return true;
 
         // Check direct user permissions
-        const userPerms = UserPermission.objects.filter<any>({ userId }).all();
+        const userPerms = UserPermission.objects.filter<UserPermissionRecord>({ userId }).all();
         for (const userPerm of userPerms) {
-            const permission = Permission.objects.get<Permission>({ id: userPerm.permissionId });
+            const permission = Permission.objects.get<PermissionRecord>({ id: userPerm.permissionId });
             if (permission && permission.codename === codename) {
                 return true;
             }
         }
 
         // Check group permissions
-        const userGroups = UserGroup.objects.filter<any>({ userId }).all();
+        const userGroups = UserGroup.objects.filter<UserGroupRecord>({ userId }).all();
         for (const userGroup of userGroups) {
-            const groupPerms = GroupPermission.objects.filter<any>({ groupId: userGroup.groupId }).all();
+            const groupPerms = GroupPermission.objects.filter<GroupPermissionRecord>({ groupId: userGroup.groupId }).all();
             for (const groupPerm of groupPerms) {
-                const permission = Permission.objects.get<Permission>({ id: groupPerm.permissionId });
+                const permission = Permission.objects.get<PermissionRecord>({ id: groupPerm.permissionId });
                 if (permission && permission.codename === codename) {
                     return true;
                 }
@@ -45,27 +56,27 @@ export class PermissionService {
     /**
      * Get all permissions for a user
      */
-    getUserPermissions(userId: number): Permission[] {
-        const user = User.objects.get<User>({ id: userId });
+    getUserPermissions(userId: number): PermissionRecord[] {
+        const user = User.objects.get<UserRecord>({ id: userId });
         if (!user) return [];
         if (user.isSuperuser) {
             // Superusers have all permissions
-            return Permission.objects.all<Permission>().all();
+            return Permission.objects.all<PermissionRecord>().all();
         }
 
-        const permissions: Permission[] = [];
+        const permissions: PermissionRecord[] = [];
         const permissionIds = new Set<number>();
 
         // Get direct permissions
-        const userPerms = UserPermission.objects.filter<any>({ userId }).all();
+        const userPerms = UserPermission.objects.filter<UserPermissionRecord>({ userId }).all();
         for (const userPerm of userPerms) {
             permissionIds.add(userPerm.permissionId);
         }
 
         // Get group permissions
-        const userGroups = UserGroup.objects.filter<any>({ userId }).all();
+        const userGroups = UserGroup.objects.filter<UserGroupRecord>({ userId }).all();
         for (const userGroup of userGroups) {
-            const groupPerms = GroupPermission.objects.filter<any>({ groupId: userGroup.groupId }).all();
+            const groupPerms = GroupPermission.objects.filter<GroupPermissionRecord>({ groupId: userGroup.groupId }).all();
             for (const groupPerm of groupPerms) {
                 permissionIds.add(groupPerm.permissionId);
             }
@@ -73,7 +84,7 @@ export class PermissionService {
 
         // Fetch permission objects
         for (const permId of permissionIds) {
-            const perm = Permission.objects.get<Permission>({ id: permId });
+            const perm = Permission.objects.get<PermissionRecord>({ id: permId });
             if (perm) {
                 permissions.push(perm);
             }
@@ -132,7 +143,7 @@ export class PermissionService {
             const codename = `${action}_${modelName.toLowerCase()}`;
             const name = `Can ${action} ${displayName}`;
 
-            const existing = Permission.objects.get<Permission>({ codename });
+            const existing = Permission.objects.get<PermissionRecord>({ codename });
             if (!existing) {
                 Permission.objects.create({
                     name,

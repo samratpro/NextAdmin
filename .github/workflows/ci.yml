@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            api/package-lock.json
+            admin/package-lock.json
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install API Dependencies
+        run: npm ci
+        working-directory: api
+
+      - name: Install Admin Dependencies
+        run: npm ci
+        working-directory: admin
+
+      - name: Verify Repository
+        run: npm run verify

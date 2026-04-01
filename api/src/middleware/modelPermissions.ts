@@ -19,7 +19,7 @@ export function requireModelPermission(modelName: string, action: 'view' | 'add'
         }
 
         // Check if user has the required permission
-        const hasPermission = await permissionService.hasPermission(user.id, modelName, action);
+        const hasPermission = permissionService.hasModelPermission(user.id, action, modelName);
 
         if (!hasPermission) {
             return reply.code(403).send({

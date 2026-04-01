@@ -1,5 +1,14 @@
-import { User, EmailVerificationToken, PasswordResetToken, RefreshToken } from './models';
-import jwt from 'jsonwebtoken';
+import {
+  User,
+  EmailVerificationToken,
+  PasswordResetToken,
+  RefreshToken,
+  UserRecord,
+  EmailVerificationTokenRecord,
+  PasswordResetTokenRecord,
+  RefreshTokenRecord
+} from './models';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import settings from '../../config/settings';
 import emailService from '../../core/email';
@@ -26,13 +35,14 @@ export interface TokenPayload {
 }
 
 class AuthService {
-  generateAccessToken(user: User): string {
+  generateAccessToken(user: UserRecord): string {
+    const authUser = user;
     const payload: TokenPayload = {
-      userId: user.id!,
-      email: user.email,
-      username: user.username,
-      isStaff: user.isStaff,
-      isSuperuser: user.isSuperuser
+      userId: authUser.id!,
+      email: authUser.email,
+      username: authUser.username,
+      isStaff: authUser.isStaff,
+      isSuperuser: authUser.isSuperuser
     };
 
     return jwt.sign(payload, settings.jwt.secret, {
@@ -40,9 +50,10 @@ class AuthService {
     });
   }
 
-  generateRefreshToken(user: User): string {
+  generateRefreshToken(user: UserRecord): string {
+    const authUser = user;
     const token = jwt.sign(
-      { userId: user.id },
+      { userId: authUser.id },
       settings.jwt.secret,
       { expiresIn: settings.jwt.refreshExpiresIn }
     );
@@ -52,7 +63,7 @@ class AuthService {
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
     RefreshToken.objects.create({
-      userId: user.id!.toString(),
+      userId: authUser.id!.toString(),
       token,
       expiresAt: expiresAt.toISOString()
     });
@@ -60,20 +71,20 @@ class AuthService {
     return token;
   }
 
-  async register(data: RegisterData): Promise<{ success: boolean; message: string; user?: User }> {
+  async register(data: RegisterData): Promise<{ success: boolean; message: string; user?: UserRecord }> {
     // Check if user already exists
-    const existingUser = User.objects.get({ email: data.email });
+    const existingUser = User.objects.get<UserRecord>({ email: data.email });
     if (existingUser) {
       return { success: false, message: 'User with this email already exists' };
     }
 
-    const existingUsername = User.objects.get({ username: data.username });
+    const existingUsername = User.objects.get<UserRecord>({ username: data.username });
     if (existingUsername) {
       return { success: false, message: 'Username already taken' };
     }
 
     // Create user
-    const user = new User();
+    const user = new User() as unknown as UserRecord;
     user.username = data.username;
     user.email = data.email;
     user.firstName = data.firstName || '';
@@ -103,7 +114,7 @@ class AuthService {
   }
 
   async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
-    const verificationToken = EmailVerificationToken.objects.get({ token });
+    const verificationToken = EmailVerificationToken.objects.get<EmailVerificationTokenRecord>({ token });
 
     if (!verificationToken) {
       return { success: false, message: 'Invalid verification token' };
@@ -113,7 +124,7 @@ class AuthService {
       return { success: false, message: 'Verification token has expired' };
     }
 
-    const user = User.objects.get({ id: parseInt(verificationToken.userId) });
+    const user = User.objects.get<UserRecord>({ id: parseInt(verificationToken.userId, 10) });
     if (!user) {
       return { success: false, message: 'User not found' };
     }
@@ -128,7 +139,7 @@ class AuthService {
   }
 
   async login(data: LoginData): Promise<{ success: boolean; message: string; accessToken?: string; refreshToken?: string; user?: any }> {
-    const user = User.objects.get({ email: data.email });
+    const user = User.objects.get<UserRecord>({ email: data.email });
 
     if (!user) {
       return { success: false, message: 'Invalid credentials' };
@@ -161,14 +172,14 @@ class AuthService {
 
   async refreshAccessToken(refreshToken: string): Promise<{ success: boolean; message: string; accessToken?: string }> {
     try {
-      const decoded = jwt.verify(refreshToken, settings.jwt.secret) as { userId: number };
+      const decoded = jwt.verify(refreshToken, settings.jwt.secret) as JwtPayload & { userId: number };
 
-      const tokenRecord = RefreshToken.objects.get({ token: refreshToken });
+      const tokenRecord = RefreshToken.objects.get<RefreshTokenRecord>({ token: refreshToken });
       if (!tokenRecord || !tokenRecord.isValid()) {
         return { success: false, message: 'Invalid refresh token' };
       }
 
-      const user = User.objects.get({ id: decoded.userId });
+      const user = User.objects.get<UserRecord>({ id: decoded.userId });
       if (!user) {
         return { success: false, message: 'User not found' };
       }
@@ -182,7 +193,7 @@ class AuthService {
   }
 
   async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
-    const user = User.objects.get({ email });
+    const user = User.objects.get<UserRecord>({ email });
 
     if (!user) {
       // Don't reveal if user exists
@@ -205,7 +216,7 @@ class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    const resetToken = PasswordResetToken.objects.get({ token });
+    const resetToken = PasswordResetToken.objects.get<PasswordResetTokenRecord>({ token });
 
     if (!resetToken) {
       return { success: false, message: 'Invalid reset token' };
@@ -219,7 +230,7 @@ class AuthService {
       return { success: false, message: 'Reset token has expired' };
     }
 
-    const user = User.objects.get({ id: parseInt(resetToken.userId) });
+    const user = User.objects.get<UserRecord>({ id: parseInt(resetToken.userId, 10) });
     if (!user) {
       return { success: false, message: 'User not found' };
     }
@@ -231,7 +242,7 @@ class AuthService {
     resetToken.save();
 
     // Revoke all refresh tokens
-    const refreshTokens = RefreshToken.objects.filter({ userId: user.id!.toString() }).all();
+    const refreshTokens = RefreshToken.objects.filter<RefreshTokenRecord>({ userId: user.id!.toString() }).all();
     refreshTokens.forEach(token => {
       token.revoked = true;
       token.save();
@@ -243,7 +254,7 @@ class AuthService {
   }
 
   async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    const user = User.objects.get({ id: userId });
+    const user = User.objects.get<UserRecord>({ id: userId });
 
     if (!user) {
       return { success: false, message: 'User not found' };

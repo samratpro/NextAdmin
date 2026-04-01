@@ -41,7 +41,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             setModels(loadedModels);
 
             // Expand all apps by default
-            const apps = new Set(loadedModels.map((m: ModelInfo) => m.appName || 'General'));
+            const apps = new Set<string>(loadedModels.map((m: ModelInfo) => m.appName || 'General'));
             setExpandedApps(apps);
         } catch (error) {
             console.error('Error loading models:', error);

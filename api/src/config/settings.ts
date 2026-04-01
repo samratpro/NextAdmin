@@ -1,4 +1,5 @@
 import { config } from 'dotenv';
+import type { SignOptions } from 'jsonwebtoken';
 config();
 
 export interface EmailConfig {
@@ -24,8 +25,8 @@ export interface AppSettings {
   email: EmailConfig;
   jwt: {
     secret: string;
-    expiresIn: string;
-    refreshExpiresIn: string;
+    expiresIn: SignOptions['expiresIn'];
+    refreshExpiresIn: SignOptions['expiresIn'];
   };
   cors: {
     origin: string | string[];
@@ -58,8 +59,8 @@ const settings: AppSettings = {
 
   jwt: {
     secret: process.env.JWT_SECRET || 'jwt-secret-key-change-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '1d',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
+    expiresIn: (process.env.JWT_EXPIRES_IN || '1d') as SignOptions['expiresIn'],
+    refreshExpiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as SignOptions['expiresIn']
   },
 
   cors: {

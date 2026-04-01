@@ -6,6 +6,7 @@ export interface FieldOptions {
   autoIncrement?: boolean;
   maxLength?: number;
   minLength?: number;
+  choices?: any[];
   onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION';
   onUpdate?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION';
 }

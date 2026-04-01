@@ -27,15 +27,17 @@ export class User extends Model {
 
   async setPassword(password: string): Promise<void> {
     const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(password, salt);
+    (this as unknown as UserRecord).password = await bcrypt.hash(password, salt);
   }
 
   async checkPassword(password: string): Promise<boolean> {
-    return bcrypt.compare(password, this.password);
+    const user = this as unknown as UserRecord;
+    return bcrypt.compare(password, user.password);
   }
 
   getFullName(): string {
-    return `${this.firstName || ''} ${this.lastName || ''}`.trim() || this.username;
+    const user = this as unknown as UserRecord;
+    return `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username;
   }
 
   static getTableName(): string {
@@ -111,7 +113,7 @@ export class EmailVerificationToken extends Model {
   }
 
   isExpired(): boolean {
-    return new Date() > new Date(this.expiresAt);
+    return new Date() > new Date((this as unknown as EmailVerificationTokenRecord).expiresAt);
   }
 }
 
@@ -127,7 +129,7 @@ export class PasswordResetToken extends Model {
   }
 
   isExpired(): boolean {
-    return new Date() > new Date(this.expiresAt);
+    return new Date() > new Date((this as unknown as PasswordResetTokenRecord).expiresAt);
   }
 }
 
@@ -143,10 +145,89 @@ export class RefreshToken extends Model {
   }
 
   isExpired(): boolean {
-    return new Date() > new Date(this.expiresAt);
+    return new Date() > new Date((this as unknown as RefreshTokenRecord).expiresAt);
   }
 
   isValid(): boolean {
-    return !this.revoked && !this.isExpired();
+    const token = this as unknown as RefreshTokenRecord;
+    return !token.revoked && !this.isExpired();
   }
 }
+
+export type UserRecord = Omit<
+  User,
+  | 'username'
+  | 'email'
+  | 'password'
+  | 'firstName'
+  | 'lastName'
+  | 'isActive'
+  | 'isStaff'
+  | 'isSuperuser'
+  | 'dateJoined'
+  | 'lastLogin'
+> & {
+  username: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  isStaff: boolean;
+  isSuperuser: boolean;
+  dateJoined: string;
+  lastLogin: string | null;
+};
+
+export type PermissionRecord = Omit<Permission, 'name' | 'codename' | 'modelName'> & {
+  name: string;
+  codename: string;
+  modelName: string;
+};
+
+export type UserPermissionRecord = Omit<UserPermission, 'userId' | 'permissionId'> & {
+  userId: number;
+  permissionId: number;
+};
+
+export type GroupPermissionRecord = Omit<GroupPermission, 'groupId' | 'permissionId'> & {
+  groupId: number;
+  permissionId: number;
+};
+
+export type UserGroupRecord = Omit<UserGroup, 'userId' | 'groupId'> & {
+  userId: number;
+  groupId: number;
+};
+
+export type EmailVerificationTokenRecord = Omit<
+  EmailVerificationToken,
+  'userId' | 'token' | 'createdAt' | 'expiresAt'
+> & {
+  userId: string;
+  token: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type PasswordResetTokenRecord = Omit<
+  PasswordResetToken,
+  'userId' | 'token' | 'createdAt' | 'expiresAt' | 'used'
+> & {
+  userId: string;
+  token: string;
+  createdAt: string;
+  expiresAt: string;
+  used: boolean;
+};
+
+export type RefreshTokenRecord = Omit<
+  RefreshToken,
+  'userId' | 'token' | 'createdAt' | 'expiresAt' | 'revoked'
+> & {
+  userId: string;
+  token: string;
+  createdAt: string;
+  expiresAt: string;
+  revoked: boolean;
+};
