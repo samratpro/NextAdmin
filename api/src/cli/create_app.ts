@@ -8,7 +8,6 @@ if (!appName) {
     process.exit(1);
 }
 
-// Ensure valid name
 if (!/^[a-z0-9_]+$/.test(appName)) {
     console.error('App name must be lowercase alphanumeric/underscores only');
     process.exit(1);
@@ -27,52 +26,118 @@ console.log(`Creating app: ${appName}...`);
 try {
     fs.mkdirSync(appPath, { recursive: true });
 
-    // 1. Create models.ts
     const className = capitalize(appName) + 'Item';
     const tableName = appName + '_items';
+    const routePath = `/api/${appName}`;
+    const tagName = capitalize(appName);
+    const serviceName = `${appName}Service`;
 
     const modelsContent = `import { Model } from '../../core/model';
 import { CharField, TextField, BooleanField, DateTimeField } from '../../core/fields';
 import { registerAdmin } from '../../core/adminRegistry';
 
 @registerAdmin({
-    appName: '${appName.charAt(0).toUpperCase() + appName.slice(1)}',
+    appName: '${tagName}',
     displayName: '${className}',
-    icon: 'folder', // feather icon name
+    icon: 'folder',
     permissions: ['view', 'add', 'change', 'delete'],
     listDisplay: ['id', 'name', 'isActive', 'createdAt'],
-    searchFields: ['name']
+    searchFields: ['name'],
+    filterFields: ['isActive']
 })
 export class ${className} extends Model {
     static getTableName(): string {
         return '${tableName}';
     }
 
-    // Define Fields
     name = new CharField({ maxLength: 100 });
-    
     description = new TextField({ nullable: true });
-
     isActive = new BooleanField({ default: true });
-    
     createdAt = new DateTimeField({ default: () => new Date().toISOString() });
 }
 `;
     fs.writeFileSync(path.join(appPath, 'models.ts'), modelsContent);
 
-    // 2. Create index.ts
+    const serviceContent = `import { ${className} } from './models';
+
+export class ${className}Service {
+    list() {
+        return ${className}.objects.all<${className}>()
+            .orderBy('id', 'DESC')
+            .all();
+    }
+
+    getById(id: number) {
+        return ${className}.objects.get<${className}>({ id });
+    }
+
+    create(data: Partial<${className}>) {
+        return ${className}.objects.create<${className}>(data);
+    }
+}
+
+export default new ${className}Service();
+`;
+    fs.writeFileSync(path.join(appPath, 'service.ts'), serviceContent);
+
+    const routesContent = `import { FastifyInstance } from 'fastify';
+import ${serviceName} from './service';
+
+export default async function ${appName}Routes(fastify: FastifyInstance) {
+    fastify.get('${routePath}', {
+        schema: {
+            tags: ['${tagName}'],
+            description: 'List ${className} records'
+        }
+    }, async () => {
+        return { data: ${serviceName}.list() };
+    });
+
+    fastify.get('${routePath}/:id', {
+        schema: {
+            tags: ['${tagName}'],
+            description: 'Get a single ${className} record'
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as { id: string };
+        const item = ${serviceName}.getById(parseInt(id, 10));
+
+        if (!item) {
+            return reply.code(404).send({ error: '${className} not found' });
+        }
+
+        return { data: item };
+    });
+
+    fastify.post('${routePath}', {
+        schema: {
+            tags: ['${tagName}'],
+            description: 'Create a ${className} record'
+        }
+    }, async (request, reply) => {
+        const item = ${serviceName}.create(request.body as any);
+        return reply.code(201).send({ data: item });
+    });
+}
+`;
+    fs.writeFileSync(path.join(appPath, 'routes.ts'), routesContent);
+
     const indexContent = `export * from './models';
+export * from './service';
 `;
     fs.writeFileSync(path.join(appPath, 'index.ts'), indexContent);
 
-    console.log('✓ Created directory structure');
-    console.log('✓ Created Default Model');
+    console.log('Created directory structure');
+    console.log('Created default model');
+    console.log('Created example service');
+    console.log('Created example routes');
 
     console.log('\nSUCCESS! Next steps:');
-    console.log(`1. Open src/index.ts`);
-    console.log(`2. Add to imports: import './apps/${appName}/models';`);
-    console.log(`3. Restart the server`);
-
+    console.log('1. Open src/index.ts');
+    console.log(`2. Add model import: import './apps/${appName}/models';`);
+    console.log(`3. Add route import: import ${appName}Routes from './apps/${appName}/routes';`);
+    console.log(`4. Register routes: await fastify.register(${appName}Routes);`);
+    console.log('5. Restart the server');
 } catch (e) {
     console.error('Failed to create app:', e);
     process.exit(1);

@@ -70,6 +70,62 @@ The current ORM and database layer are still coupled to SQLite details such as:
 
 That means a true PostgreSQL migration is an engineering task, not an environment-variable switch.
 
+## What You Can Configure Today
+
+Today, the only built-in database runtime configuration is the SQLite file path:
+
+```env
+DB_PATH=./db.sqlite3
+```
+
+That setting is read by the SQLite database manager in `api/src/core/database.ts`.
+
+There is currently no supported production configuration like:
+
+```env
+DATABASE_URL=postgres://...
+DB_CLIENT=postgres
+```
+
+Those variables would not switch the runtime to PostgreSQL in the current codebase.
+
+## If a User Wants PostgreSQL in Production
+
+The honest answer is:
+
+- there is no documented PostgreSQL production config because PostgreSQL is not yet a first-class runtime backend here
+- a user cannot enable PostgreSQL only by changing environment variables
+- the framework code must be adapted first
+
+The main SQLite-specific areas today are:
+
+- `api/src/core/database.ts`
+- `api/src/core/model.ts`
+- schema creation behavior in the model layer
+- manual migration guidance that currently assumes SQLite-first workflows
+
+If you want to support PostgreSQL properly, the framework should first gain:
+
+1. a PostgreSQL connection layer
+2. a database selection mechanism such as `DB_CLIENT=sqlite|postgres`
+3. a PostgreSQL connection config such as `DATABASE_URL=postgres://...`
+4. SQL generation that works across both engines
+5. insert/update behavior that does not rely on SQLite-only semantics
+6. a clearer migration story for non-SQLite deployments
+
+Only after that work would a production PostgreSQL configuration section make sense.
+
+## Example of a Future PostgreSQL Config
+
+The following is an example of what a future PostgreSQL setup could look like after framework support is added:
+
+```env
+DB_CLIENT=postgres
+DATABASE_URL=postgres://app_user:app_password@db.example.com:5432/nango
+```
+
+That example is illustrative only. It is not supported by the current implementation.
+
 ## Two Practical Paths to PostgreSQL
 
 ### Path 1: Adapt the Existing ORM

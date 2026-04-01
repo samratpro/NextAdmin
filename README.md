@@ -33,6 +33,61 @@ Default local ports:
 - Admin: `http://localhost:8001`
 - Public app: `http://localhost:3000` if you build one alongside this repo
 
+## How the Admin Fits With Your App
+
+Nango is intentionally split into separate layers:
+
+- `api/` is the shared backend
+- `admin/` is the internal management UI
+- your public app is a separate frontend for end users
+
+This means the admin is not meant to be embedded into the user-facing app.
+
+Instead, the intended shape is:
+
+```text
+Public App  ----\
+                 >---- API ---- Database
+Admin Panel ----/
+```
+
+In practice:
+
+- admins and staff use `admin/`
+- end users use your own frontend
+- both frontends talk to the same backend API
+
+If you are looking for "how to integrate the admin with the user's app", the answer in Nango is usually:
+
+1. keep the admin separate
+2. point both frontends at the same API
+3. let the admin manage data
+4. expose product-specific routes from `api/` for the public app
+
+For the full step-by-step guide, see [Public App Integration](./tutorials/PUBLIC_APP_INTEGRATION.md).
+
+## Day-One Workflow
+
+If you want the fastest path to something working, use this order:
+
+1. create a backend app with `cd api && npm run startapp blog`
+2. define your model in `api/src/apps/blog/models.ts`
+3. add public routes in `api/src/apps/blog/routes.ts`
+4. import the model file in `api/src/index.ts`
+5. register the route module in `api/src/index.ts`
+6. restart the API
+7. log into the admin and manage the model there
+8. fetch the same data from your public frontend
+
+The generated app scaffold now includes:
+
+- `models.ts`
+- `service.ts`
+- `routes.ts`
+- `index.ts`
+
+For the full walkthrough, read [First Feature Guide](./tutorials/FIRST_FEATURE_GUIDE.md).
+
 ## Quick Start
 
 ### Prerequisites
@@ -100,6 +155,8 @@ npm run startapp blog
 
 This scaffolds a new backend app under `api/src/apps/blog`.
 
+The scaffold now includes example `models.ts`, `service.ts`, and `routes.ts` files.
+
 ### Register a Model
 
 Create your model in `api/src/apps/<appName>/models.ts`, decorate it with `@registerAdmin`, and import the file in `api/src/index.ts`.
@@ -132,6 +189,58 @@ Then register the model module:
 import './apps/blog/models';
 ```
 
+If you want public API routes for that app, also register the route module:
+
+```typescript
+import blogRoutes from './apps/blog/routes';
+
+await fastify.register(blogRoutes);
+```
+
+Imported models that use `@registerAdmin(...)` are now auto-created on startup and show up in the admin once the API restarts.
+
+## Auth and Public Frontend Integration
+
+The backend already ships with auth endpoints that both the admin and your public app can use:
+
+- `POST /auth/register`
+- `POST /auth/verify-email`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/forgot-password`
+- `POST /auth/reset-password`
+- `POST /auth/change-password`
+- `GET /auth/me`
+
+Typical public app flow:
+
+1. register through the API
+2. verify the account from a link sent to your public frontend
+3. log in and store the returned JWT tokens
+4. call protected API routes with `Authorization: Bearer <token>`
+
+Important config for that flow:
+
+- `CORS_ORIGIN` should include both the admin origin and the public frontend origin
+- `FRONTEND_URL` should point to your user-facing app because verification and reset emails use it
+- `NEXT_PUBLIC_API_URL` should point each frontend to the API
+
+Example local backend config:
+
+```env
+PORT=8000
+HOST=0.0.0.0
+CORS_ORIGIN=http://localhost:8001,http://localhost:3000
+ADMIN_URL=http://localhost:8001
+FRONTEND_URL=http://localhost:3000
+```
+
+Example frontend config:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
 ## Philosophy
 
 Nango is built around a few engineering principles:
@@ -144,13 +253,38 @@ Nango is built around a few engineering principles:
 
 If you come from Django, the structure will feel familiar. If you come from Node.js, the boundaries should feel easier to control.
 
+## Production Database Reality
+
+Nango is currently SQLite-first.
+
+What is supported today:
+
+- SQLite in development
+- SQLite in production
+- changing the SQLite file location with `DB_PATH`
+
+What is not supported yet as a simple configuration switch:
+
+- `DB_CLIENT=postgres`
+- `DATABASE_URL=postgres://...`
+- dropping PostgreSQL into production without framework changes
+
+The current database layer and ORM are still tied to SQLite implementation details, so PostgreSQL is possible only as an engineering task, not as an env-var-only setup.
+
+If you need the honest current status and migration options, read:
+
+- [Production Deployment](./tutorials/PRODUCTION_DEPLOYMENT.md)
+- [Database and Migrations](./tutorials/DATABASE_MIGRATIONS.md)
+
 ## Documentation
 
 The main guides live in [`tutorials/README.md`](./tutorials/README.md).
 
 - [Architecture](./tutorials/ARCHITECTURE.md)
+- [First Feature Guide](./tutorials/FIRST_FEATURE_GUIDE.md)
 - [Model Registration Guide](./tutorials/MODEL_REGISTRATION_GUIDE.md)
 - [User and Authentication Guide](./tutorials/USER_AND_AUTH_GUIDE.md)
+- [Public App Integration](./tutorials/PUBLIC_APP_INTEGRATION.md)
 - [Database and Migrations](./tutorials/DATABASE_MIGRATIONS.md)
 - [Port Configuration](./tutorials/PORT_CONFIGURATION.md)
 - [Rate Limiting](./tutorials/RATE_LIMITING.md)

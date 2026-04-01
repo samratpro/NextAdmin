@@ -7,10 +7,22 @@ import rateLimit from '@fastify/rate-limit';
 import settings from './config/settings';
 import DatabaseManager from './core/database';
 import emailService from './core/email';
+import { ModelRegistry } from './core/ModelRegistry';
 import { requireBasicAuthSuperuser } from './middleware/auth';
+import permissionService from './apps/auth/permissionService';
 
 // Import models
-import { User, EmailVerificationToken, PasswordResetToken, RefreshToken } from './apps/auth/models';
+import {
+  User,
+  Group,
+  Permission,
+  UserPermission,
+  GroupPermission,
+  UserGroup,
+  EmailVerificationToken,
+  PasswordResetToken,
+  RefreshToken
+} from './apps/auth/models';
 
 
 
@@ -29,13 +41,26 @@ async function initializeDatabase() {
   console.log('Initializing database...');
   DatabaseManager.initialize(settings.database.path);
 
-  // Create tables
-  User.createTable();
-  EmailVerificationToken.createTable();
-  PasswordResetToken.createTable();
-  RefreshToken.createTable();
+  const coreModels = [
+    User,
+    Group,
+    Permission,
+    UserPermission,
+    GroupPermission,
+    UserGroup,
+    EmailVerificationToken,
+    PasswordResetToken,
+    RefreshToken
+  ];
 
+  for (const model of coreModels) {
+    model.createTable();
+  }
 
+  for (const metadata of ModelRegistry.getAllModels()) {
+    metadata.model.createTable();
+    permissionService.createModelPermissions(metadata.model.name, metadata.displayName);
+  }
 
   console.log('Database initialized successfully');
 }

@@ -1,32 +1,58 @@
 # Model Registration Guide
 
-This guide explains how models become active in Nango and how they connect to the admin UI.
+This guide explains the full path from "I want a model" to "I can manage it in the admin and use it in my app".
 
-In this framework, defining a class is only part of the story. A model becomes useful when it is:
+In Nango, those are separate steps:
 
-1. defined in an app
-2. imported by the API entry point
-3. optionally registered for the admin UI
+1. create the app folder
+2. define the model
+3. import the model in `api/src/index.ts`
+4. register routes for your public API
+5. restart the API
+6. use the model in the admin if it is registered with `@registerAdmin(...)`
 
-## The Model Lifecycle
+## The Most Important Rule
 
-For a model to matter in practice:
+Defining a model class is not enough by itself.
 
-1. create it in `api/src/apps/<appName>/models.ts`
-2. add `@registerAdmin(...)` if you want it in the admin
-3. import the model module from `api/src/index.ts`
-4. restart the API so the table can be created if it does not already exist
+For a model to matter in practice, you need to wire it into the API runtime explicitly.
 
-## Quick Example
+## What `startapp` Gives You
 
-Create an app:
+Run:
 
 ```bash
 cd api
 npm run startapp blog
 ```
 
-Then define a model in `api/src/apps/blog/models.ts`:
+That creates:
+
+- `api/src/apps/blog/models.ts`
+- `api/src/apps/blog/service.ts`
+- `api/src/apps/blog/routes.ts`
+- `api/src/apps/blog/index.ts`
+
+The generated app is only a starting point. You still need to wire it into `api/src/index.ts`.
+
+## End-to-End Example
+
+Let's build a `BlogPost` model that:
+
+- appears in the admin
+- stores data in the database
+- is available from a public API route
+
+### Step 1: Create the App
+
+```bash
+cd api
+npm run startapp blog
+```
+
+### Step 2: Define the Model
+
+Edit `api/src/apps/blog/models.ts`:
 
 ```typescript
 import { Model } from '../../core/model';
@@ -55,35 +81,96 @@ export class BlogPost extends Model {
 }
 ```
 
-Register the model module in `api/src/index.ts`:
+### Step 3: Add Public API Routes
+
+Edit `api/src/apps/blog/routes.ts`:
+
+```typescript
+import { FastifyInstance } from 'fastify';
+import { BlogPost } from './models';
+
+export default async function blogRoutes(fastify: FastifyInstance) {
+  fastify.get('/api/posts', {
+    schema: {
+      tags: ['Blog'],
+      description: 'List published blog posts'
+    }
+  }, async () => {
+    const posts = BlogPost.objects.all<BlogPost>()
+      .orderBy('id', 'DESC')
+      .all()
+      .filter((post: any) => post.published);
+
+    return { data: posts };
+  });
+
+  fastify.get('/api/posts/:id', {
+    schema: {
+      tags: ['Blog'],
+      description: 'Get a single blog post'
+    }
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const post = BlogPost.objects.get<BlogPost>({ id: parseInt(id, 10) });
+
+    if (!post) {
+      return reply.code(404).send({ error: 'Post not found' });
+    }
+
+    return { data: post };
+  });
+}
+```
+
+### Step 4: Wire the App Into the API
+
+Edit `api/src/index.ts` and add:
 
 ```typescript
 import './apps/blog/models';
+import blogRoutes from './apps/blog/routes';
 ```
 
-After restarting the API:
+Then register the routes inside `start()`:
 
-- the table can be created automatically if it does not exist yet
-- the model appears in the admin sidebar
-- the admin can use the metadata from `@registerAdmin(...)`
+```typescript
+await fastify.register(blogRoutes);
+```
 
-## What `@registerAdmin(...)` Does
+## What Happens After Restart
 
-The decorator does not create routes by itself. It provides admin metadata such as:
+When the API restarts:
 
-- display name
-- app grouping
-- icon
-- list columns
-- search fields
-- filter fields
-- permission labels
+1. `import './apps/blog/models'` runs
+2. `@registerAdmin(...)` registers the model with the admin registry
+3. startup creates the table for imported admin-registered models
+4. default model permissions are created
+5. the model appears in the admin
+6. your custom routes become available
 
-Think of it as admin registration plus UI configuration.
+## What `@registerAdmin(...)` Actually Does
+
+`@registerAdmin(...)` does three practical things:
+
+1. makes the model visible to the admin system
+2. gives the admin UI metadata such as display name, list columns, and filters
+3. allows startup to auto-create the table and default permissions for that imported model
+
+It does not create public API routes for you. Those remain explicit.
+
+## Custom Table Names
+
+If you define `getTableName()`, that name becomes the table name in the database.
+
+Use custom table names when:
+
+- you want predictable snake_case names
+- you are matching an existing schema
+- you do not want the default pluralization behavior
 
 ## Relationships
 
-Use `ForeignKey` when a model should reference another model.
+Use `ForeignKey` when one model references another.
 
 Example:
 
@@ -123,16 +210,6 @@ export class BlogPost extends Model {
 }
 ```
 
-## Custom Table Names
-
-If you define `getTableName()`, that custom name becomes the source of truth.
-
-Use custom table names when:
-
-- you want stable table naming
-- you want snake_case tables
-- you want compatibility with an existing schema
-
 ## Common Admin Options
 
 ```typescript
@@ -143,7 +220,8 @@ Use custom table names when:
   permissions: ['view', 'add', 'change', 'delete'],
   listDisplay: ['id', 'name', 'price'],
   searchFields: ['name', 'description'],
-  filterFields: ['isActive']
+  filterFields: ['isActive'],
+  excludeFields: ['internalNotes']
 })
 ```
 
@@ -161,44 +239,44 @@ Use custom table names when:
 | `EmailField` | email addresses |
 | `ForeignKey` | model relationships |
 
-## Routes Are Still Explicit
+## Admin Model vs API-Only Model
 
-Registering a model for admin does not replace API route design.
+If a model should be manageable in the admin, use `@registerAdmin(...)`.
 
-If you want custom endpoints for your public frontend, define them in `routes.ts`.
+If a model is API-only and you do not register it for admin:
 
-Example:
+- it will not appear in the admin
+- it will not be auto-created through the admin registry startup path
+- you should create its table explicitly in startup code
 
-```typescript
-import { FastifyInstance } from 'fastify';
-import { BlogPost } from './models';
-
-export default async function blogRoutes(fastify: FastifyInstance) {
-  fastify.get('/api/posts', async () => {
-    return BlogPost.objects.all().all();
-  });
-}
-```
-
-Then register the routes in `api/src/index.ts`.
+That is part of Nango's explicit design.
 
 ## Troubleshooting
 
 ### Model does not appear in admin
 
-Check these first:
+Check:
 
 1. the model has `@registerAdmin(...)`
 2. the model file is imported in `api/src/index.ts`
+3. the API server was restarted
+4. you are logged into the admin as a superuser or a staff user with the right permissions
+
+### Public route returns 404
+
+Check:
+
+1. `routes.ts` exists
+2. the routes were registered in `api/src/index.ts`
 3. the API server was restarted
 
 ### Table does not exist
 
 Check:
 
-1. the model module was imported before startup completed
-2. the SQLite database path is what you expect
-3. you are not assuming automatic schema updates for existing tables
+1. the model file is imported in `api/src/index.ts`
+2. the model is registered with `@registerAdmin(...)`, or you created its table manually
+3. you are pointing at the expected database file
 
 ## Recommended Mental Model
 
@@ -206,6 +284,6 @@ In Nango, a model has three separate concerns:
 
 - data definition
 - admin registration
-- API exposure
+- public API exposure
 
-Keeping those concerns separate is part of the framework's loose-coupling approach.
+Keeping those concerns explicit is one of the framework's core ideas.

@@ -64,6 +64,21 @@ DB_PATH=./db.sqlite3
 
 You can point this to another path if needed.
 
+## PostgreSQL Note
+
+This database configuration is SQLite-only today.
+
+`DB_PATH` changes the location of the SQLite file. It does not switch the backend to PostgreSQL.
+
+There is currently no built-in config such as:
+
+```env
+DB_CLIENT=postgres
+DATABASE_URL=postgres://...
+```
+
+If you want PostgreSQL, you need framework-level changes in the database and model layers before production configuration can be documented as a supported path.
+
 ## Recreating the Superuser
 
 If you reset the database, recreate your admin account:

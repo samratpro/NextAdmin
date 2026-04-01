@@ -43,7 +43,7 @@ class EmailService {
   }
 
   async sendVerificationEmail(to: string, token: string, username: string): Promise<boolean> {
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/verify-email?token=${token}`;
+    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
 
     const html = `
       <!DOCTYPE html>
@@ -75,7 +75,7 @@ class EmailService {
   }
 
   async sendPasswordResetEmail(to: string, token: string, username: string): Promise<boolean> {
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
 
     const html = `
       <!DOCTYPE html>
