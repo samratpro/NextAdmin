@@ -1,44 +1,59 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import type { DbAdapter } from './db/types';
+import { SQLiteAdapter } from './db/sqliteAdapter';
+import { PostgresAdapter } from './db/postgresAdapter';
+
+export interface DatabaseConfig {
+  engine: 'sqlite' | 'postgresql';
+  /** SQLite file path (or ':memory:' for tests). Ignored when engine is 'postgresql'. */
+  path?: string;
+  /** PostgreSQL connection URL. Required when engine is 'postgresql'. */
+  url?: string;
+}
 
 class DatabaseManager {
-  private static instance: Database.Database | null = null;
-  private static dbPath: string = path.join(process.cwd(), 'db.sqlite3');
+  private static adapter: DbAdapter | null = null;
 
-  static initialize(customPath?: string): Database.Database {
-    if (customPath) {
-      this.dbPath = customPath;
+  static initialize(config: DatabaseConfig | string): DbAdapter {
+    // Accept a raw string for backwards-compatibility (treated as SQLite path)
+    if (typeof config === 'string') {
+      this.adapter = new SQLiteAdapter(config);
+      return this.adapter;
     }
 
-    // Create directory if it doesn't exist
-    const dir = path.dirname(this.dbPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (config.engine === 'postgresql') {
+      if (!config.url) {
+        throw new Error('DATABASE_URL is required when DB_ENGINE=postgresql');
+      }
+      this.adapter = new PostgresAdapter(config.url);
+    } else {
+      this.adapter = new SQLiteAdapter(config.path || './db.sqlite3');
     }
 
-    this.instance = new Database(this.dbPath);
-    this.instance.pragma('journal_mode = WAL');
-
-    return this.instance;
+    return this.adapter;
   }
 
-  static getConnection(): Database.Database {
-    if (!this.instance) {
-      return this.initialize();
+  static getAdapter(): DbAdapter {
+    if (!this.adapter) {
+      // Lazy default: SQLite in the current working directory
+      this.adapter = new SQLiteAdapter('./db.sqlite3');
     }
-    return this.instance;
+    return this.adapter;
   }
 
-  static close(): void {
-    if (this.instance) {
-      this.instance.close();
-      this.instance = null;
+  /** @deprecated Use getAdapter() */
+  static getConnection(): DbAdapter {
+    return this.getAdapter();
+  }
+
+  static async close(): Promise<void> {
+    if (this.adapter) {
+      await this.adapter.close();
+      this.adapter = null;
     }
   }
 
   static getPath(): string {
-    return this.dbPath;
+    return './db.sqlite3';
   }
 }
 

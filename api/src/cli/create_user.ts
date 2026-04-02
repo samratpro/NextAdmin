@@ -1,69 +1,91 @@
-import { User } from '../apps/auth/models';
-import DatabaseManager from '../core/database';
-import settings from '../config/settings';
 import readline from 'readline';
 
-// Initialize DB
-DatabaseManager.initialize(settings.database.path);
+// Must be set BEFORE any module that uses the logger is imported.
+// Static imports are hoisted above this line by Node, so we use
+// dynamic import() below to load models/db AFTER this is set.
+process.env.LOG_LEVEL = 'silent';
 
 const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
+    terminal: true,
 });
+
+// Git Bash / mintty pauses stdin by default — resume it so readline works
+process.stdin.resume();
 
 const question = (q: string) => new Promise<string>(resolve => rl.question(q, resolve));
 
 async function run() {
-    try {
-        console.log('--- Create User ---');
-        const username = await question('Username: ');
-        if (!username) throw new Error('Username required');
+    // Import and silence logger FIRST before any other app modules
+    const { default: logger } = await import('../core/logger');
+    logger.level = 'silent';
 
-        const email = await question('Email: ');
-        if (!email) throw new Error('Email required');
+    // Now import models and other dependencies — their side effects (like model registration)
+    // will now use the silenced logger.
+    const [{ User }, { default: DatabaseManager }, { default: settings }] = await Promise.all([
+        import('../apps/auth/models'),
+        import('../core/database'),
+        import('../config/settings'),
+    ]);
 
-        const password = await question('Password: ');
-        if (!password) throw new Error('Password required');
+    DatabaseManager.initialize(settings.database.path);
+    await User.createTable();
 
-        const role = await question('Role (admin/staff/user) [user]: ');
+    console.log('\n--- Create User ---');
 
-        let isSuperuser = false;
-        let isStaff = false;
+    const username = await question('Username: ');
+    if (!username.trim()) { console.error('Username is required'); return; }
 
-        const r = role.toLowerCase().trim();
-        if (r === 'admin' || r === 'superuser') {
-            isSuperuser = true;
-            isStaff = true;
-        } else if (r === 'staff') {
-            isStaff = true;
-        }
+    const email = await question('Email: ');
+    if (!email.trim()) { console.error('Email is required'); return; }
 
-        // Check exists
-        const exists = User.objects.get<User>({ username });
-        if (exists) {
-            console.error('User already exists');
+    const password = await question('Password: ');
+    if (!password.trim()) { console.error('Password is required'); return; }
+
+    const role = await question('Role (admin/staff/user) [user]: ');
+
+    let isSuperuser = false;
+    let isStaff = false;
+    const r = role.toLowerCase().trim();
+    if (r === 'admin' || r === 'superuser') {
+        isSuperuser = true;
+        isStaff = true;
+    } else if (r === 'staff') {
+        isStaff = true;
+    }
+
+    // Check if user already exists
+    let user = await User.objects.get<InstanceType<typeof User>>({ username: username.trim() });
+    const isUpdate = !!user;
+
+    if (isUpdate) {
+        const confirm = await question(`\nUser "${username}" already exists. Update password and status? [Y/n]: `);
+        if (confirm.toLowerCase().startsWith('n')) {
+            console.log('Skipped.');
             return;
         }
-
-        const user = new User();
-        (user as any).username = username;
-        (user as any).email = email;
-        (user as any).isStaff = isStaff;
-        (user as any).isSuperuser = isSuperuser;
-        (user as any).isActive = true;
-
-        await user.setPassword(password);
-        user.save();
-
-        console.log(`\nUser ${username} created successfully!`);
-        console.log(`Role: ${isSuperuser ? 'Superuser' : (isStaff ? 'Staff' : 'User')}`);
-
-    } catch (e) {
-        console.error('Error:', e);
-    } finally {
-        rl.close();
-        process.exit(0);
+        console.log(`\nUpdating user "${username}"...`);
+    } else {
+        user = new User();
+        (user as any).username = username.trim();
     }
+
+    (user as any).email = email.trim();
+    (user as any).isStaff = isStaff;
+    (user as any).isSuperuser = isSuperuser;
+    (user as any).isActive = true;
+
+    await user!.setPassword(password);
+    await user!.save();
+
+    console.log(`\n✓ User "${username}" ${isUpdate ? 'updated' : 'created'} successfully!`);
+    console.log(`  Role: ${isSuperuser ? 'Superuser' : (isStaff ? 'Staff' : 'User')}`);
 }
 
-run();
+run()
+    .catch(e => console.error('Error:', e))
+    .finally(() => {
+        rl.close();
+        process.exit(0);
+    });

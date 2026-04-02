@@ -3,6 +3,14 @@ import { requireStaff, requireSuperuser } from '../../middleware/auth';
 import { ModelRegistry } from '../../core/ModelRegistry';
 import { User } from '../auth/models';
 import permissionService from '../auth/permissionService';
+import {
+  paginationQuerySchema,
+  modelNameParamSchema,
+  idParamSchema,
+  createUserSchema,
+  updateUserSchema,
+  parseOrReply,
+} from './schemas';
 
 // Helper function to check if model requires superuser access
 function isProtectedAuthModel(modelName: string): boolean {
@@ -13,6 +21,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // Get all registered models
     fastify.get('/api/admin/models', {
         preHandler: requireStaff,
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Get all registered models',
@@ -45,7 +54,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             let hasPermission = false;
 
             for (const action of actions) {
-                if (permissionService.hasModelPermission(request.user!.userId, action, modelName)) {
+                if (await permissionService.hasModelPermission(request.user!.userId, action, modelName)) {
                     hasPermission = true;
                     break;
                 }
@@ -69,6 +78,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // Get model metadata
     fastify.get('/api/admin/models/:modelName', {
         preHandler: requireStaff,
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Get model metadata',
@@ -89,7 +99,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             const actions = ['view', 'add', 'change', 'delete'];
             let hasPermission = false;
             for (const action of actions) {
-                if (permissionService.hasModelPermission(request.user!.userId, action, modelName)) {
+                if (await permissionService.hasModelPermission(request.user!.userId, action, modelName)) {
                     hasPermission = true;
                     break;
                 }
@@ -107,14 +117,25 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // List model instances with pagination
     fastify.get('/api/admin/models/:modelName/data', {
         preHandler: requireStaff,
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Get model instances',
             security: [{ bearerAuth: [] }]
         }
     }, async (request, reply) => {
-        const { modelName } = request.params as { modelName: string };
-        const { page = 1, limit = 20, search = '', orderBy = 'id', orderDirection = 'DESC' } = request.query as any;
+        const paramResult = parseOrReply(modelNameParamSchema, request.params);
+        if (!paramResult.success) {
+            reply.code(422).send({ error: 'Invalid params', details: paramResult.errors.flatten() });
+            return;
+        }
+        const queryResult = parseOrReply(paginationQuerySchema, request.query);
+        if (!queryResult.success) {
+            reply.code(422).send({ error: 'Invalid query', details: queryResult.errors.flatten() });
+            return;
+        }
+        const { modelName } = paramResult.data;
+        const { page, limit, orderBy = 'id', orderDirection = 'DESC' } = queryResult.data;
 
         const metadata = ModelRegistry.getModel(modelName);
         if (!metadata) {
@@ -125,7 +146,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         // Check permission
         if (!request.user?.isSuperuser) {
             // Require 'view' permission to list data
-            const hasPermission = permissionService.hasModelPermission(
+            const hasPermission = await permissionService.hasModelPermission(
                 request.user!.userId,
                 'view',
                 modelName
@@ -145,8 +166,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         const offset = (page - 1) * limit;
         query = query.offset(offset).limit(limit);
 
-        const instances = query.all();
-        const total = metadata.model.objects.count();
+        const instances = await query.all();
+        const total = await metadata.model.objects.count();
 
         // Filter excluded fields (security)
         const excluded = metadata.adminOptions.excludeFields || [];
@@ -172,6 +193,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // Get single model instance
     fastify.get('/api/admin/models/:modelName/data/:id', {
         preHandler: requireStaff,
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Get single model instance',
@@ -188,7 +210,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
         // Check permission
         if (!request.user?.isSuperuser) {
-            const hasPermission = permissionService.hasModelPermission(
+            const hasPermission = await permissionService.hasModelPermission(
                 request.user!.userId,
                 'view',
                 modelName
@@ -199,7 +221,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             }
         }
 
-        const instance = metadata.model.objects.get<any>({ id: parseInt(id) });
+        const instance = await metadata.model.objects.get<any>({ id: parseInt(id) });
         if (!instance) {
             reply.code(404).send({ error: 'Instance not found' });
             return;
@@ -216,6 +238,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // Create model instance
     fastify.post('/api/admin/models/:modelName/data', {
         preHandler: requireStaff,
+        config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Create model instance',
@@ -232,7 +255,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
         // Check permission
         if (!request.user?.isSuperuser) {
-            const hasPermission = permissionService.hasModelPermission(
+            const hasPermission = await permissionService.hasModelPermission(
                 request.user!.userId,
                 'add',
                 modelName
@@ -255,13 +278,14 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         }
 
         Object.assign(instance, body);
-        instance.save();
+        await instance.save();
         reply.code(201).send({ data: instance });
     });
 
     // Update model instance
     fastify.put('/api/admin/models/:modelName/data/:id', {
         preHandler: requireStaff,
+        config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Update model instance',
@@ -278,7 +302,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
         // Check permission
         if (!request.user?.isSuperuser) {
-            const hasPermission = permissionService.hasModelPermission(
+            const hasPermission = await permissionService.hasModelPermission(
                 request.user!.userId,
                 'change',
                 modelName
@@ -289,7 +313,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             }
         }
 
-        const instance = metadata.model.objects.get<any>({ id: parseInt(id) });
+        const instance = await metadata.model.objects.get<any>({ id: parseInt(id) });
         if (!instance) {
             reply.code(404).send({ error: 'Instance not found' });
             return;
@@ -306,7 +330,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         }
 
         Object.assign(instance, body);
-        instance.save();
+        await instance.save();
 
         reply.send({ data: instance });
     });
@@ -314,6 +338,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // Delete model instance
     fastify.delete('/api/admin/models/:modelName/data/:id', {
         preHandler: requireStaff,
+        config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Delete model instance',
@@ -330,7 +355,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
         // Check permission
         if (!request.user?.isSuperuser) {
-            const hasPermission = permissionService.hasModelPermission(
+            const hasPermission = await permissionService.hasModelPermission(
                 request.user!.userId,
                 'delete',
                 modelName
@@ -341,19 +366,20 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             }
         }
 
-        const instance = metadata.model.objects.get<any>({ id: parseInt(id) });
+        const instance = await metadata.model.objects.get<any>({ id: parseInt(id) });
         if (!instance) {
             reply.code(404).send({ error: 'Instance not found' });
             return;
         }
 
-        instance.delete();
+        await instance.delete();
         reply.code(204).send();
     });
 
     // User management endpoints
     fastify.get('/api/admin/users', {
         preHandler: requireSuperuser,
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Get all users',
@@ -363,13 +389,13 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         const { page = 1, limit = 20 } = request.query as any;
 
         const offset = (page - 1) * limit;
-        const users = User.objects.all<User>()
+        const users = await User.objects.all<User>()
             .orderBy('id', 'DESC')
             .offset(offset)
             .limit(limit)
             .all();
 
-        const total = User.objects.count();
+        const total = await User.objects.count();
 
         // Remove sensitive data
         const safeUsers = users.map(u => ({
@@ -399,13 +425,19 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // Create user
     fastify.post('/api/admin/users', {
         preHandler: requireSuperuser,
+        config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Create a new user',
             security: [{ bearerAuth: [] }]
         }
     }, async (request, reply) => {
-        const { username, email, password, firstName, lastName, isActive, isStaff, isSuperuser } = request.body as any;
+        const bodyResult = parseOrReply(createUserSchema, request.body);
+        if (!bodyResult.success) {
+            reply.code(422).send({ error: 'Invalid input', details: bodyResult.errors.flatten() });
+            return;
+        }
+        const { username, email, password, firstName, lastName, isActive, isStaff, isSuperuser } = bodyResult.data;
 
         const user = new User();
         (user as any).username = username;
@@ -417,7 +449,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         (user as any).isSuperuser = isSuperuser || false;
 
         await user.setPassword(password);
-        user.save();
+        await user.save();
 
         reply.code(201).send({
             user: {
@@ -433,16 +465,26 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     // Update user (including role changes)
     fastify.put('/api/admin/users/:id', {
         preHandler: requireSuperuser,
+        config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
         schema: {
             tags: ['Admin'],
             description: 'Update user',
             security: [{ bearerAuth: [] }]
         }
     }, async (request, reply) => {
-        const { id } = request.params as { id: string };
-        const updates = request.body as any;
+        const paramResult = parseOrReply(idParamSchema, request.params);
+        if (!paramResult.success) {
+            reply.code(422).send({ error: 'Invalid params', details: paramResult.errors.flatten() });
+            return;
+        }
+        const bodyResult = parseOrReply(updateUserSchema, request.body);
+        if (!bodyResult.success) {
+            reply.code(422).send({ error: 'Invalid input', details: bodyResult.errors.flatten() });
+            return;
+        }
+        const updates = bodyResult.data;
 
-        const user = User.objects.get<User>({ id: parseInt(id) });
+        const user = await User.objects.get<User>({ id: paramResult.data.id });
         if (!user) {
             reply.code(404).send({ error: 'User not found' });
             return;
@@ -461,7 +503,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             await user.setPassword(updates.password);
         }
 
-        user.save();
+        await user.save();
 
         reply.send({ user });
     });
@@ -477,7 +519,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id, permissionId } = request.params as { id: string; permissionId: string };
 
-        permissionService.assignPermission(parseInt(id), parseInt(permissionId));
+        await permissionService.assignPermission(parseInt(id), parseInt(permissionId));
 
         reply.send({ success: true });
     });
@@ -493,7 +535,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id, permissionId } = request.params as { id: string; permissionId: string };
 
-        permissionService.revokePermission(parseInt(id), parseInt(permissionId));
+        await permissionService.revokePermission(parseInt(id), parseInt(permissionId));
 
         reply.send({ success: true });
     });

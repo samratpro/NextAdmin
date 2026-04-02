@@ -50,10 +50,10 @@ class AuthService {
     });
   }
 
-  generateRefreshToken(user: UserRecord): string {
+  async generateRefreshToken(user: UserRecord): Promise<string> {
     const authUser = user;
     const token = jwt.sign(
-      { userId: authUser.id },
+      { userId: authUser.id, jti: uuidv4() },  // jti ensures uniqueness even within the same second
       settings.jwt.secret,
       { expiresIn: settings.jwt.refreshExpiresIn }
     );
@@ -62,7 +62,7 @@ class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    RefreshToken.objects.create({
+    await RefreshToken.objects.create({
       userId: authUser.id!.toString(),
       token,
       expiresAt: expiresAt.toISOString()
@@ -73,12 +73,12 @@ class AuthService {
 
   async register(data: RegisterData): Promise<{ success: boolean; message: string; user?: UserRecord }> {
     // Check if user already exists
-    const existingUser = User.objects.get<UserRecord>({ email: data.email });
+    const existingUser = await User.objects.get<UserRecord>({ email: data.email });
     if (existingUser) {
       return { success: false, message: 'User with this email already exists' };
     }
 
-    const existingUsername = User.objects.get<UserRecord>({ username: data.username });
+    const existingUsername = await User.objects.get<UserRecord>({ username: data.username });
     if (existingUsername) {
       return { success: false, message: 'Username already taken' };
     }
@@ -90,14 +90,14 @@ class AuthService {
     user.firstName = data.firstName || '';
     user.lastName = data.lastName || '';
     await user.setPassword(data.password);
-    user.save();
+    await user.save();
 
     // Generate verification token
     const token = uuidv4();
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours
 
-    EmailVerificationToken.objects.create({
+    await EmailVerificationToken.objects.create({
       userId: user.id!.toString(),
       token,
       expiresAt: expiresAt.toISOString()
@@ -114,7 +114,7 @@ class AuthService {
   }
 
   async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
-    const verificationToken = EmailVerificationToken.objects.get<EmailVerificationTokenRecord>({ token });
+    const verificationToken = await EmailVerificationToken.objects.get<EmailVerificationTokenRecord>({ token });
 
     if (!verificationToken) {
       return { success: false, message: 'Invalid verification token' };
@@ -124,22 +124,22 @@ class AuthService {
       return { success: false, message: 'Verification token has expired' };
     }
 
-    const user = User.objects.get<UserRecord>({ id: parseInt(verificationToken.userId, 10) });
+    const user = await User.objects.get<UserRecord>({ id: parseInt(verificationToken.userId, 10) });
     if (!user) {
       return { success: false, message: 'User not found' };
     }
 
     user.isActive = true;
-    user.save();
+    await user.save();
 
     // Delete used token
-    verificationToken.delete();
+    await verificationToken.delete();
 
     return { success: true, message: 'Email verified successfully' };
   }
 
   async login(data: LoginData): Promise<{ success: boolean; message: string; accessToken?: string; refreshToken?: string; user?: any }> {
-    const user = User.objects.get<UserRecord>({ email: data.email });
+    const user = await User.objects.get<UserRecord>({ email: data.email });
 
     if (!user) {
       return { success: false, message: 'Invalid credentials' };
@@ -156,10 +156,10 @@ class AuthService {
 
     // Update last login
     user.lastLogin = new Date().toISOString();
-    user.save();
+    await user.save();
 
     const accessToken = this.generateAccessToken(user);
-    const refreshToken = this.generateRefreshToken(user);
+    const refreshToken = await this.generateRefreshToken(user);
 
     return {
       success: true,
@@ -170,30 +170,35 @@ class AuthService {
     };
   }
 
-  async refreshAccessToken(refreshToken: string): Promise<{ success: boolean; message: string; accessToken?: string }> {
+  async refreshAccessToken(refreshToken: string): Promise<{ success: boolean; message: string; accessToken?: string; refreshToken?: string }> {
     try {
       const decoded = jwt.verify(refreshToken, settings.jwt.secret) as JwtPayload & { userId: number };
 
-      const tokenRecord = RefreshToken.objects.get<RefreshTokenRecord>({ token: refreshToken });
+      const tokenRecord = await RefreshToken.objects.get<RefreshTokenRecord>({ token: refreshToken });
       if (!tokenRecord || !tokenRecord.isValid()) {
         return { success: false, message: 'Invalid refresh token' };
       }
 
-      const user = User.objects.get<UserRecord>({ id: decoded.userId });
+      const user = await User.objects.get<UserRecord>({ id: decoded.userId });
       if (!user) {
         return { success: false, message: 'User not found' };
       }
 
-      const accessToken = this.generateAccessToken(user);
+      // Rotate: revoke the old token before issuing a new one
+      tokenRecord.revoked = true;
+      await tokenRecord.save();
 
-      return { success: true, message: 'Token refreshed', accessToken };
+      const accessToken = this.generateAccessToken(user);
+      const newRefreshToken = await this.generateRefreshToken(user);
+
+      return { success: true, message: 'Token refreshed', accessToken, refreshToken: newRefreshToken };
     } catch (error) {
       return { success: false, message: 'Invalid refresh token' };
     }
   }
 
   async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
-    const user = User.objects.get<UserRecord>({ email });
+    const user = await User.objects.get<UserRecord>({ email });
 
     if (!user) {
       // Don't reveal if user exists
@@ -204,7 +209,7 @@ class AuthService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1); // 1 hour
 
-    PasswordResetToken.objects.create({
+    await PasswordResetToken.objects.create({
       userId: user.id!.toString(),
       token,
       expiresAt: expiresAt.toISOString()
@@ -216,7 +221,7 @@ class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    const resetToken = PasswordResetToken.objects.get<PasswordResetTokenRecord>({ token });
+    const resetToken = await PasswordResetToken.objects.get<PasswordResetTokenRecord>({ token });
 
     if (!resetToken) {
       return { success: false, message: 'Invalid reset token' };
@@ -230,23 +235,23 @@ class AuthService {
       return { success: false, message: 'Reset token has expired' };
     }
 
-    const user = User.objects.get<UserRecord>({ id: parseInt(resetToken.userId, 10) });
+    const user = await User.objects.get<UserRecord>({ id: parseInt(resetToken.userId, 10) });
     if (!user) {
       return { success: false, message: 'User not found' };
     }
 
     await user.setPassword(newPassword);
-    user.save();
+    await user.save();
 
     resetToken.used = true;
-    resetToken.save();
+    await resetToken.save();
 
     // Revoke all refresh tokens
-    const refreshTokens = RefreshToken.objects.filter<RefreshTokenRecord>({ userId: user.id!.toString() }).all();
-    refreshTokens.forEach(token => {
-      token.revoked = true;
-      token.save();
-    });
+    const refreshTokens = await RefreshToken.objects.filter<RefreshTokenRecord>({ userId: user.id!.toString() }).all();
+    for (const rt of refreshTokens) {
+      rt.revoked = true;
+      await rt.save();
+    }
 
     await emailService.sendPasswordChangedEmail(user.email, user.username);
 
@@ -254,7 +259,7 @@ class AuthService {
   }
 
   async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    const user = User.objects.get<UserRecord>({ id: userId });
+    const user = await User.objects.get<UserRecord>({ id: userId });
 
     if (!user) {
       return { success: false, message: 'User not found' };
@@ -266,7 +271,7 @@ class AuthService {
     }
 
     await user.setPassword(newPassword);
-    user.save();
+    await user.save();
 
     await emailService.sendPasswordChangedEmail(user.email, user.username);
 

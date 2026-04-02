@@ -1,6 +1,5 @@
 import DatabaseManager from './database';
 import { Field, AutoField } from './fields';
-import Database from 'better-sqlite3';
 
 export interface QueryOptions {
   limit?: number;
@@ -24,12 +23,10 @@ export class QuerySet<T> {
   }
 
   orderBy(field: string, direction: 'ASC' | 'DESC' = 'ASC'): QuerySet<T> {
-    // Security check for orderBy field
     const validFields = Object.keys(this.model.getFields());
     if (!validFields.includes(field) && field !== 'id') {
       throw new Error(`Security Error: Invalid orderBy field '${field}'`);
     }
-
     this.options.orderBy = field;
     this.options.orderDirection = direction;
     return this;
@@ -47,25 +44,23 @@ export class QuerySet<T> {
 
   private buildWhereClause(params: any[]): string {
     if (Object.keys(this.filters).length === 0) return '';
-    
+
     const validFields = Object.keys(this.model.getFields());
     const conditions: string[] = [];
-    
+
     for (const key of Object.keys(this.filters)) {
-      // SECURITY: Validate column name against allowed fields to prevent SQL Injection
       if (!validFields.includes(key) && key !== 'id') {
         throw new Error(`Security Error: Invalid filter field '${key}' on model '${this.model.name}'`);
       }
-      
       params.push(this.filters[key]);
       conditions.push(`${key} = ?`);
     }
-    
+
     return conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   }
 
-  all(): T[] {
-    const db = DatabaseManager.getConnection();
+  async all(): Promise<T[]> {
+    const db = DatabaseManager.getAdapter();
     const tableName = this.model.getTableName();
 
     let query = `SELECT * FROM ${tableName}`;
@@ -76,32 +71,29 @@ export class QuerySet<T> {
     if (this.options.orderBy) {
       query += ` ORDER BY ${this.options.orderBy} ${this.options.orderDirection || 'ASC'}`;
     }
-
     if (this.options.limit) {
       query += ` LIMIT ${this.options.limit}`;
     }
-
     if (this.options.offset) {
       query += ` OFFSET ${this.options.offset}`;
     }
 
-    const stmt = db.prepare(query);
-    const results = stmt.all(...params);
+    const results = await db.all<Record<string, any>>(query, params);
 
     return results.map(row => {
       const instance = new (this.model as any)();
       Object.assign(instance, row);
-      return instance;
+      return instance as T;
     });
   }
 
-  first(): T | null {
-    const results = this.limit(1).all();
+  async first(): Promise<T | null> {
+    const results = await this.limit(1).all();
     return results.length > 0 ? results[0] : null;
   }
 
-  count(): number {
-    const db = DatabaseManager.getConnection();
+  async count(): Promise<number> {
+    const db = DatabaseManager.getAdapter();
     const tableName = this.model.getTableName();
 
     let query = `SELECT COUNT(*) as count FROM ${tableName}`;
@@ -109,13 +101,12 @@ export class QuerySet<T> {
 
     query += this.buildWhereClause(params);
 
-    const stmt = db.prepare(query);
-    const result = stmt.get(...params) as { count: number };
-    return result.count;
+    const result = await db.get<{ count: number }>(query, params);
+    return result?.count ?? 0;
   }
 
-  delete(): number {
-    const db = DatabaseManager.getConnection();
+  async delete(): Promise<number> {
+    const db = DatabaseManager.getAdapter();
     const tableName = this.model.getTableName();
 
     let query = `DELETE FROM ${tableName}`;
@@ -123,12 +114,7 @@ export class QuerySet<T> {
 
     query += this.buildWhereClause(params);
 
-    // Safety: Don't allow delete all without explicit empty filter?
-    // Django allows .all().delete().
-    // We'll allow it.
-
-    const stmt = db.prepare(query);
-    const result = stmt.run(...params);
+    const result = await db.run(query, params);
     return result.changes;
   }
 }
@@ -145,12 +131,10 @@ export class Model {
   static getFields(): Record<string, Field> {
     const fields: Record<string, Field> = {};
 
-    // Add id field by default
     const idField = new AutoField();
     idField.fieldName = 'id';
     fields.id = idField;
 
-    // Get fields from the class
     const instance = new (this as any)();
     for (const key in instance) {
       if (instance[key] instanceof Field) {
@@ -163,15 +147,15 @@ export class Model {
     return fields;
   }
 
-  static createTable(): void {
-    const db = DatabaseManager.getConnection();
+  static async createTable(): Promise<void> {
+    const db = DatabaseManager.getAdapter();
     const tableName = this.getTableName();
     const fields = this.getFields();
 
     const fieldDefinitions: string[] = [];
     const foreignKeys: string[] = [];
 
-    for (const [name, field] of Object.entries(fields)) {
+    for (const [, field] of Object.entries(fields)) {
       const definition = field.getFullDefinition();
 
       if (definition.includes('FOREIGN KEY')) {
@@ -184,132 +168,106 @@ export class Model {
     }
 
     const allDefinitions = [...fieldDefinitions, ...foreignKeys].join(', ');
-    const createTableSQL = `CREATE TABLE IF NOT EXISTS ${tableName} (${allDefinitions})`;
-
-    db.exec(createTableSQL);
+    await db.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (${allDefinitions})`);
   }
 
-  static dropTable(): void {
-    const db = DatabaseManager.getConnection();
+  static async dropTable(): Promise<void> {
+    const db = DatabaseManager.getAdapter();
     const tableName = this.getTableName();
-    db.exec(`DROP TABLE IF EXISTS ${tableName}`);
+    await db.exec(`DROP TABLE IF EXISTS ${tableName}`);
   }
 
   static get objects() {
     const ModelClass = this;
     return {
-      all: function<T>(): QuerySet<T> {
+      all<T>(): QuerySet<T> {
         return new QuerySet<T>(ModelClass);
       },
 
-      filter: function<T>(filters: Record<string, any>): QuerySet<T> {
+      filter<T>(filters: Record<string, any>): QuerySet<T> {
         return new QuerySet<T>(ModelClass).filter(filters);
       },
 
-      get: function<T>(filters: Record<string, any>): T | null {
+      async get<T>(filters: Record<string, any>): Promise<T | null> {
         return new QuerySet<T>(ModelClass).filter(filters).first();
       },
 
-      create: function<T>(data: Partial<T>): T {
+      async create<T>(data: Partial<T>): Promise<T> {
         const instance = new (ModelClass as any)();
         Object.assign(instance, data);
-        instance.save();
-        return instance;
+        await instance.save();
+        return instance as T;
       },
 
-      count: function(): number {
+      async count(): Promise<number> {
         return new QuerySet(ModelClass).count();
-      }
+      },
     };
   }
 
-  save(): void {
-    const db = DatabaseManager.getConnection();
+  async save(): Promise<void> {
+    const db = DatabaseManager.getAdapter();
     const tableName = (this.constructor as typeof Model).getTableName();
     const fields = (this.constructor as typeof Model).getFields();
 
     const data: Record<string, any> = {};
 
-    // Only iterate over the field names we know about, not all instance properties
     for (const fieldName of Object.keys(fields)) {
-      if (fieldName !== 'id') {
-        let value = (this as any)[fieldName];
-        const field = fields[fieldName];
+      if (fieldName === 'id') continue;
 
-        // Skip if the value is still a Field instance (not yet assigned)
-        if (value !== undefined && value !== null && typeof value === 'object' && 'fieldName' in value) {
-          // Check if field has a default value
-          if (field.options.default !== undefined) {
-            // If default is a function, call it
-            if (typeof field.options.default === 'function') {
-              value = field.options.default();
-            } else {
-              value = field.options.default;
-            }
-          } else {
-            continue; // Skip Field instances with no default
-          }
-        }
+      let value = (this as any)[fieldName];
+      const field = fields[fieldName];
 
-        // Handle undefined/null values with defaults
-        if ((value === undefined || value === null) && field.options.default !== undefined) {
-          if (typeof field.options.default === 'function') {
-            value = field.options.default();
-          } else {
-            value = field.options.default;
-          }
-        }
-
-        // Convert booleans to integers for SQLite (SQLite doesn't have native boolean type)
-        if (typeof value === 'boolean') {
-          data[fieldName] = value ? 1 : 0;
+      // If value is still a Field instance, use its default or skip
+      if (value !== undefined && value !== null && typeof value === 'object' && 'fieldName' in value) {
+        if (field.options.default !== undefined) {
+          value = typeof field.options.default === 'function' ? field.options.default() : field.options.default;
         } else {
-          data[fieldName] = value;
+          continue;
         }
       }
+
+      // Apply default when value is absent
+      if ((value === undefined || value === null) && field.options.default !== undefined) {
+        value = typeof field.options.default === 'function' ? field.options.default() : field.options.default;
+      }
+
+      // SQLite stores booleans as 0/1; PostgreSQL accepts this too
+      data[fieldName] = typeof value === 'boolean' ? (value ? 1 : 0) : value;
     }
 
     if (this.id) {
-      // Update existing record
       const setClause = Object.keys(data).map(key => `${key} = ?`).join(', ');
-      const values = [...Object.values(data), this.id];
-
-      const updateSQL = `UPDATE ${tableName} SET ${setClause} WHERE id = ?`;
-      const stmt = db.prepare(updateSQL);
-      stmt.run(...values);
+      await db.run(
+        `UPDATE ${tableName} SET ${setClause} WHERE id = ?`,
+        [...Object.values(data), this.id]
+      );
     } else {
-      // Insert new record
       const keys = Object.keys(data);
       const placeholders = keys.map(() => '?').join(', ');
-      const values = Object.values(data);
-
-      const insertSQL = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`;
-      const stmt = db.prepare(insertSQL);
-      const result = stmt.run(...values);
-
-      this.id = result.lastInsertRowid as number;
+      const result = await db.run(
+        `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`,
+        Object.values(data)
+      );
+      this.id = result.lastInsertRowid;
     }
   }
 
-  delete(): void {
-    if (!this.id) {
-      throw new Error('Cannot delete unsaved object');
-    }
-
-    const db = DatabaseManager.getConnection();
+  async delete(): Promise<void> {
+    if (!this.id) throw new Error('Cannot delete unsaved object');
+    const db = DatabaseManager.getAdapter();
     const tableName = (this.constructor as typeof Model).getTableName();
-
-    const deleteSQL = `DELETE FROM ${tableName} WHERE id = ?`;
-    const stmt = db.prepare(deleteSQL);
-    stmt.run(this.id);
+    await db.run(`DELETE FROM ${tableName} WHERE id = ?`, [this.id]);
   }
 
   toJSON(): Record<string, any> {
     const result: Record<string, any> = {};
-    const fields = (this.constructor as typeof Model).getFields();
     for (const key in this) {
       const value = (this as any)[key];
-      if (typeof value !== 'function' && (value === null || value === undefined || typeof value !== 'object' || !('fieldName' in value))) {
+      if (
+        typeof value !== 'function' &&
+        (value === null || value === undefined || typeof value !== 'object' || !('fieldName' in value))
+      ) {
         result[key] = value;
       }
     }

@@ -1,12 +1,13 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import settings from '../config/settings';
+import logger from './logger';
 
 class EmailService {
   private transporter: Transporter | null = null;
 
   initialize(): void {
     if (!settings.email.auth.user || !settings.email.auth.pass) {
-      console.warn('Email credentials not configured. Email functionality will be disabled.');
+      logger.warn('Email credentials not configured. Email functionality will be disabled.');
       return;
     }
 
@@ -23,7 +24,7 @@ class EmailService {
 
   async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
     if (!this.transporter) {
-      console.error('Email service not initialized. Please configure email settings.');
+      logger.error('Email service not initialized. Please configure email settings.');
       return false;
     }
 
@@ -37,7 +38,7 @@ class EmailService {
 
       return true;
     } catch (error) {
-      console.error('Error sending email:', error);
+      logger.error({ error }, 'Error sending email');
       return false;
     }
   }

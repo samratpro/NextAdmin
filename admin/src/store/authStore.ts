@@ -14,10 +14,9 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loadUser: () => Promise<void>;
   checkAuth: () => boolean;
-  getToken: () => string | null;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -25,23 +24,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
 
-  getToken: () => {
-    return localStorage.getItem('accessToken');
-  },
-
   login: async (email: string, password: string) => {
     try {
       const response = await api.login(email, password);
 
       if (response.success) {
-        localStorage.setItem('accessToken', response.accessToken);
-        localStorage.setItem('refreshToken', response.refreshToken);
-
+        // Tokens are set as httpOnly cookies by the server — no localStorage needed
         set({
           user: response.user,
           isAuthenticated: true,
         });
-
         return true;
       }
 
@@ -52,30 +44,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  logout: () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+  logout: async () => {
+    try {
+      // Ask the server to clear the httpOnly cookies
+      await api.post('/auth/logout', {});
+    } catch {
+      // Proceed with local logout even if server call fails
+    }
     set({ user: null, isAuthenticated: false });
   },
 
   loadUser: async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-
-      if (!token) {
-        set({ isLoading: false, isAuthenticated: false });
-        return;
-      }
-
+      // Cookie is sent automatically — no localStorage check needed
       const response = await api.getCurrentUser();
       set({
         user: response.user,
         isAuthenticated: true,
         isLoading: false,
       });
-    } catch (error) {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+    } catch {
       set({
         user: null,
         isAuthenticated: false,
@@ -85,7 +73,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   checkAuth: () => {
-    const token = localStorage.getItem('accessToken');
-    return !!token;
+    return get().isAuthenticated;
   },
 }));

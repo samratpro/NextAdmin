@@ -10,9 +10,7 @@ import ActionBar from '@/components/ActionBar';
 import Fieldset from '@/components/Fieldset';
 import Sidebar from '@/components/Sidebar';
 import DualListBox from '@/components/DualListBox';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { api } from '@/lib/api';
 
 interface ModelMetadata {
     model: any;
@@ -42,7 +40,7 @@ interface FieldMetadata {
 export default function ModelDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const { user, logout, getToken } = useAuthStore();
+    const { user, logout } = useAuthStore();
     const modelName = params.modelName as string;
 
     const [metadata, setMetadata] = useState<ModelMetadata | null>(null);
@@ -65,6 +63,7 @@ export default function ModelDetailPage() {
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
     const [currentPage, setCurrentPage] = useState(1);
+    const [serverTotalPages, setServerTotalPages] = useState(1);
     const [sortField, setSortField] = useState<string | null>(null);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const itemsPerPage = 20;
@@ -88,10 +87,15 @@ export default function ModelDetailPage() {
                 loadGroupsAndPermissions();
             }
             if (isGroupModel) {
-                loadGroupsAndPermissions(); // Load permissions for Group model too
+                loadGroupsAndPermissions();
             }
         }
     }, [modelName]);
+
+    // Re-fetch when page or sort changes
+    useEffect(() => {
+        if (modelName) loadData();
+    }, [currentPage, sortField, sortDirection]);
 
     // Search functionality
     useEffect(() => {
@@ -121,11 +125,8 @@ export default function ModelDetailPage() {
 
     const loadRelatedData = async (relatedModel: string) => {
         try {
-            const token = getToken();
-            const response = await axios.get(`${API_URL}/api/admin/models/${relatedModel}/data`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setRelatedData(prev => ({ ...prev, [relatedModel]: response.data.data || [] }));
+            const response = await api.get(`/api/admin/models/${relatedModel}/data`);
+            setRelatedData(prev => ({ ...prev, [relatedModel]: response.data || [] }));
         } catch (error) {
             console.error(`Error loading ${relatedModel} data:`, error);
         }
@@ -133,20 +134,17 @@ export default function ModelDetailPage() {
 
     const loadMetadata = async () => {
         try {
-            const token = getToken();
-            const response = await axios.get(`${API_URL}/api/admin/models/${modelName}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setMetadata(response.data.metadata);
+            const response = await api.get(`/api/admin/models/${modelName}`);
+            setMetadata(response.metadata);
 
-            Object.entries(response.data.metadata.fields).forEach(([key, field]: [string, any]) => {
+            Object.entries(response.metadata.fields).forEach(([key, field]: [string, any]) => {
                 if (field.type === 'ForeignKey' && field.relatedModel) {
                     loadRelatedData(field.relatedModel);
                 }
             });
 
             const initialForm: Record<string, any> = {};
-            Object.entries(response.data.metadata.fields).forEach(([key, field]: [string, any]) => {
+            Object.entries(response.metadata.fields).forEach(([key, field]: [string, any]) => {
                 if (key !== 'id' && field.default !== undefined) {
                     initialForm[key] = typeof field.default === 'function' ? '' : field.default;
                 }
@@ -167,12 +165,16 @@ export default function ModelDetailPage() {
     const loadData = async () => {
         if (error) return; // Don't load if error
         try {
-            const token = getToken();
-            const response = await axios.get(`${API_URL}/api/admin/models/${modelName}/data`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setData(response.data.data || []);
-            setFilteredData(response.data.data || []);
+            const orderBy = sortField || 'id';
+            const orderDirection = sortDirection.toUpperCase();
+            const response = await api.get(
+                `/api/admin/models/${modelName}/data?page=${currentPage}&limit=${itemsPerPage}&orderBy=${orderBy}&orderDirection=${orderDirection}`
+            );
+            setData(response.data || []);
+            setFilteredData(response.data || []);
+            if (response.pagination) {
+                setServerTotalPages(response.pagination.totalPages || 1);
+            }
         } catch (error: any) {
             console.error('Error loading data:', error);
             if (error.response?.status === 403) {
@@ -186,19 +188,12 @@ export default function ModelDetailPage() {
 
     const loadGroupsAndPermissions = async () => {
         try {
-            const token = getToken();
-
-            // Load all groups
-            const groupsResponse = await axios.get(`${API_URL}/api/admin/groups`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setAllGroups(groupsResponse.data.groups || []);
-
-            // Load all permissions
-            const permsResponse = await axios.get(`${API_URL}/api/admin/permissions`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setAllPermissions(permsResponse.data.permissions || []);
+            const [groupsResponse, permsResponse] = await Promise.all([
+                api.get('/api/admin/groups'),
+                api.get('/api/admin/permissions'),
+            ]);
+            setAllGroups(groupsResponse.groups || []);
+            setAllPermissions(permsResponse.permissions || []);
         } catch (error) {
             console.error('Error loading groups/permissions:', error);
         }
@@ -206,19 +201,12 @@ export default function ModelDetailPage() {
 
     const loadUserGroupsAndPermissions = async (userId: number) => {
         try {
-            const token = getToken();
-
-            // Load user's groups
-            const groupsResponse = await axios.get(`${API_URL}/api/admin/users/${userId}/groups`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setSelectedGroups(groupsResponse.data.groupIds || []);
-
-            // Load user's permissions
-            const permsResponse = await axios.get(`${API_URL}/api/admin/users/${userId}/permissions`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setSelectedPermissions(permsResponse.data.permissionIds || []);
+            const [groupsResponse, permsResponse] = await Promise.all([
+                api.get(`/api/admin/users/${userId}/groups`),
+                api.get(`/api/admin/users/${userId}/permissions`),
+            ]);
+            setSelectedGroups(groupsResponse.groupIds || []);
+            setSelectedPermissions(permsResponse.permissionIds || []);
         } catch (error) {
             console.error('Error loading user groups/permissions:', error);
         }
@@ -226,13 +214,8 @@ export default function ModelDetailPage() {
 
     const loadGroupPermissions = async (groupId: number) => {
         try {
-            const token = getToken();
-
-            // Load group's permissions
-            const permsResponse = await axios.get(`${API_URL}/api/admin/groups/${groupId}/permissions`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setGroupPermissions(permsResponse.data.permissionIds || []);
+            const response = await api.get(`/api/admin/groups/${groupId}/permissions`);
+            setGroupPermissions(response.permissionIds || []);
         } catch (error) {
             console.error('Error loading group permissions:', error);
         }
@@ -247,42 +230,21 @@ export default function ModelDetailPage() {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const token = getToken();
-            const response = await axios.post(
-                `${API_URL}/api/admin/models/${modelName}/data`,
-                formData,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            const response = await api.post(`/api/admin/models/${modelName}/data`, formData);
 
             // Save groups and permissions for User model
-            if (isUserModel && response.data.data?.id) {
-                const userId = response.data.data.id;
-
-                // Save groups
-                await axios.put(
-                    `${API_URL}/api/admin/users/${userId}/groups`,
-                    { groupIds: selectedGroups },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-
-                // Save permissions
-                await axios.put(
-                    `${API_URL}/api/admin/users/${userId}/permissions`,
-                    { permissionIds: selectedPermissions },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
+            if (isUserModel && response.data?.id) {
+                const userId = response.data.id;
+                await Promise.all([
+                    api.put(`/api/admin/users/${userId}/groups`, { groupIds: selectedGroups }),
+                    api.put(`/api/admin/users/${userId}/permissions`, { permissionIds: selectedPermissions }),
+                ]);
             }
 
             // Save permissions for Group model
-            if (isGroupModel && response.data.data?.id) {
-                const groupId = response.data.data.id;
-
-                // Save permissions
-                await axios.put(
-                    `${API_URL}/api/admin/groups/${groupId}/permissions`,
-                    { permissionIds: groupPermissions },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
+            if (isGroupModel && response.data?.id) {
+                const groupId = response.data.id;
+                await api.put(`/api/admin/groups/${groupId}/permissions`, { permissionIds: groupPermissions });
             }
 
 
@@ -312,38 +274,19 @@ export default function ModelDetailPage() {
         if (!editingItem) return;
 
         try {
-            const token = getToken();
-            await axios.put(
-                `${API_URL}/api/admin/models/${modelName}/data/${editingItem.id}`,
-                formData,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await api.put(`/api/admin/models/${modelName}/data/${editingItem.id}`, formData);
 
             // Save groups and permissions for User model
             if (isUserModel && editingItem.id) {
-                // Save groups
-                await axios.put(
-                    `${API_URL}/api/admin/users/${editingItem.id}/groups`,
-                    { groupIds: selectedGroups },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-
-                // Save permissions
-                await axios.put(
-                    `${API_URL}/api/admin/users/${editingItem.id}/permissions`,
-                    { permissionIds: selectedPermissions },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
+                await Promise.all([
+                    api.put(`/api/admin/users/${editingItem.id}/groups`, { groupIds: selectedGroups }),
+                    api.put(`/api/admin/users/${editingItem.id}/permissions`, { permissionIds: selectedPermissions }),
+                ]);
             }
 
             // Save permissions for Group model
             if (isGroupModel && editingItem.id) {
-                // Save permissions
-                await axios.put(
-                    `${API_URL}/api/admin/groups/${editingItem.id}/permissions`,
-                    { permissionIds: groupPermissions },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
+                await api.put(`/api/admin/groups/${editingItem.id}/permissions`, { permissionIds: groupPermissions });
             }
 
             if (saveAction === 'save-continue') {
@@ -368,11 +311,7 @@ export default function ModelDetailPage() {
         if (!confirm('Are you sure you want to delete this item?')) return;
 
         try {
-            const token = getToken();
-            await axios.delete(
-                `${API_URL}/api/admin/models/${modelName}/data/${id}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await api.delete(`/api/admin/models/${modelName}/data/${id}`);
             loadData();
             showNotification('success', `${metadata?.displayName} deleted successfully!`);
         } catch (error: any) {
@@ -443,12 +382,8 @@ export default function ModelDetailPage() {
             if (!confirm(`Are you sure you want to delete ${selectedRows.size} items?`)) return;
 
             try {
-                const token = getToken();
                 const deletePromises = Array.from(selectedRows).map(id =>
-                    axios.delete(
-                        `${API_URL}/api/admin/models/${modelName}/data/${id}`,
-                        { headers: { Authorization: `Bearer ${token}` } }
-                    )
+                    api.delete(`/api/admin/models/${modelName}/data/${id}`)
                 );
                 await Promise.all(deletePromises);
                 setSelectedRows(new Set());
@@ -527,11 +462,10 @@ export default function ModelDetailPage() {
     };
 
     const processedData = getProcessedData();
-    const totalPages = Math.ceil(processedData.length / itemsPerPage);
-    const paginatedData = processedData.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    // Pagination is handled server-side; serverTotalPages comes from the API response.
+    // Client-side processedData may be a subset (one page), so use server total.
+    const totalPages = serverTotalPages;
+    const paginatedData = processedData; // already the correct page from the server
 
     // Generate filter options from data
     const getFilterOptions = () => {
@@ -770,7 +704,7 @@ export default function ModelDetailPage() {
                                 <div className="flex items-center space-x-4">
                                     <span className="text-sm font-medium text-gray-700">{user?.username}</span>
                                     <button
-                                        onClick={() => { logout(); router.push('/login'); }}
+                                        onClick={async () => { await logout(); router.push('/login'); }}
                                         className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
                                     >
                                         Logout

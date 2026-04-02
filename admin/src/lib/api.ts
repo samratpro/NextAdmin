@@ -11,18 +11,11 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      // Send httpOnly cookies automatically on every request
+      withCredentials: true,
     });
 
-    // Add auth token to requests
-    this.client.interceptors.request.use((config) => {
-      const token = localStorage.getItem('accessToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
-
-    // Handle token refresh
+    // Handle automatic token refresh on 401
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
@@ -32,21 +25,11 @@ class ApiClient {
           originalRequest._retry = true;
 
           try {
-            const refreshToken = localStorage.getItem('refreshToken');
-            if (refreshToken) {
-              const response = await axios.post(`${API_URL}/auth/refresh`, {
-                refreshToken,
-              });
-
-              const { accessToken } = response.data;
-              localStorage.setItem('accessToken', accessToken);
-
-              originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-              return this.client(originalRequest);
-            }
-          } catch (refreshError) {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
+            // The refresh cookie is sent automatically via withCredentials
+            await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
+            // Retry original request — new accessToken cookie is already set by the server
+            return this.client(originalRequest);
+          } catch {
             window.location.href = '/login';
           }
         }

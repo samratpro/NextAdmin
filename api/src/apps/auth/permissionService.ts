@@ -1,3 +1,4 @@
+import logger from '../../core/logger';
 import {
     User,
     Permission,
@@ -15,27 +16,27 @@ export class PermissionService {
     /**
      * Check if a user has a specific permission
      */
-    hasPermission(userId: number, codename: string): boolean {
+    async hasPermission(userId: number, codename: string): Promise<boolean> {
         // Superusers have all permissions
-        const user = User.objects.get<UserRecord>({ id: userId });
+        const user = await User.objects.get<UserRecord>({ id: userId });
         if (!user) return false;
         if (user.isSuperuser) return true;
 
         // Check direct user permissions
-        const userPerms = UserPermission.objects.filter<UserPermissionRecord>({ userId }).all();
+        const userPerms = await UserPermission.objects.filter<UserPermissionRecord>({ userId }).all();
         for (const userPerm of userPerms) {
-            const permission = Permission.objects.get<PermissionRecord>({ id: userPerm.permissionId });
+            const permission = await Permission.objects.get<PermissionRecord>({ id: userPerm.permissionId });
             if (permission && permission.codename === codename) {
                 return true;
             }
         }
 
         // Check group permissions
-        const userGroups = UserGroup.objects.filter<UserGroupRecord>({ userId }).all();
+        const userGroups = await UserGroup.objects.filter<UserGroupRecord>({ userId }).all();
         for (const userGroup of userGroups) {
-            const groupPerms = GroupPermission.objects.filter<GroupPermissionRecord>({ groupId: userGroup.groupId }).all();
+            const groupPerms = await GroupPermission.objects.filter<GroupPermissionRecord>({ groupId: userGroup.groupId }).all();
             for (const groupPerm of groupPerms) {
-                const permission = Permission.objects.get<PermissionRecord>({ id: groupPerm.permissionId });
+                const permission = await Permission.objects.get<PermissionRecord>({ id: groupPerm.permissionId });
                 if (permission && permission.codename === codename) {
                     return true;
                 }
@@ -48,7 +49,7 @@ export class PermissionService {
     /**
      * Check if a user has permission to perform an action on a model
      */
-    hasModelPermission(userId: number, action: string, modelName: string): boolean {
+    async hasModelPermission(userId: number, action: string, modelName: string): Promise<boolean> {
         const codename = `${action}_${modelName.toLowerCase()}`;
         return this.hasPermission(userId, codename);
     }
@@ -56,8 +57,8 @@ export class PermissionService {
     /**
      * Get all permissions for a user
      */
-    getUserPermissions(userId: number): PermissionRecord[] {
-        const user = User.objects.get<UserRecord>({ id: userId });
+    async getUserPermissions(userId: number): Promise<PermissionRecord[]> {
+        const user = await User.objects.get<UserRecord>({ id: userId });
         if (!user) return [];
         if (user.isSuperuser) {
             // Superusers have all permissions
@@ -68,15 +69,15 @@ export class PermissionService {
         const permissionIds = new Set<number>();
 
         // Get direct permissions
-        const userPerms = UserPermission.objects.filter<UserPermissionRecord>({ userId }).all();
+        const userPerms = await UserPermission.objects.filter<UserPermissionRecord>({ userId }).all();
         for (const userPerm of userPerms) {
             permissionIds.add(userPerm.permissionId);
         }
 
         // Get group permissions
-        const userGroups = UserGroup.objects.filter<UserGroupRecord>({ userId }).all();
+        const userGroups = await UserGroup.objects.filter<UserGroupRecord>({ userId }).all();
         for (const userGroup of userGroups) {
-            const groupPerms = GroupPermission.objects.filter<GroupPermissionRecord>({ groupId: userGroup.groupId }).all();
+            const groupPerms = await GroupPermission.objects.filter<GroupPermissionRecord>({ groupId: userGroup.groupId }).all();
             for (const groupPerm of groupPerms) {
                 permissionIds.add(groupPerm.permissionId);
             }
@@ -84,7 +85,7 @@ export class PermissionService {
 
         // Fetch permission objects
         for (const permId of permissionIds) {
-            const perm = Permission.objects.get<PermissionRecord>({ id: permId });
+            const perm = await Permission.objects.get<PermissionRecord>({ id: permId });
             if (perm) {
                 permissions.push(perm);
             }
@@ -96,61 +97,61 @@ export class PermissionService {
     /**
      * Assign a permission to a user
      */
-    assignPermission(userId: number, permissionId: number): void {
-        const existing = UserPermission.objects.get<any>({ userId, permissionId });
+    async assignPermission(userId: number, permissionId: number): Promise<void> {
+        const existing = await UserPermission.objects.get<any>({ userId, permissionId });
         if (!existing) {
-            UserPermission.objects.create({ userId, permissionId });
+            await UserPermission.objects.create({ userId, permissionId });
         }
     }
 
     /**
      * Revoke a permission from a user
      */
-    revokePermission(userId: number, permissionId: number): void {
-        const userPerm = UserPermission.objects.get<any>({ userId, permissionId });
+    async revokePermission(userId: number, permissionId: number): Promise<void> {
+        const userPerm = await UserPermission.objects.get<any>({ userId, permissionId });
         if (userPerm) {
-            userPerm.delete();
+            await userPerm.delete();
         }
     }
 
     /**
      * Assign a user to a group
      */
-    assignGroup(userId: number, groupId: number): void {
-        const existing = UserGroup.objects.get<any>({ userId, groupId });
+    async assignGroup(userId: number, groupId: number): Promise<void> {
+        const existing = await UserGroup.objects.get<any>({ userId, groupId });
         if (!existing) {
-            UserGroup.objects.create({ userId, groupId });
+            await UserGroup.objects.create({ userId, groupId });
         }
     }
 
     /**
      * Remove a user from a group
      */
-    removeFromGroup(userId: number, groupId: number): void {
-        const userGroup = UserGroup.objects.get<any>({ userId, groupId });
+    async removeFromGroup(userId: number, groupId: number): Promise<void> {
+        const userGroup = await UserGroup.objects.get<any>({ userId, groupId });
         if (userGroup) {
-            userGroup.delete();
+            await userGroup.delete();
         }
     }
 
     /**
      * Create default permissions for a model
      */
-    createModelPermissions(modelName: string, displayName: string): void {
+    async createModelPermissions(modelName: string, displayName: string): Promise<void> {
         const actions = ['view', 'add', 'change', 'delete'];
 
         for (const action of actions) {
             const codename = `${action}_${modelName.toLowerCase()}`;
             const name = `Can ${action} ${displayName}`;
 
-            const existing = Permission.objects.get<PermissionRecord>({ codename });
+            const existing = await Permission.objects.get<PermissionRecord>({ codename });
             if (!existing) {
-                Permission.objects.create({
+                await Permission.objects.create({
                     name,
                     codename,
                     modelName
                 });
-                console.log(`Created permission: ${codename}`);
+                logger.debug({ codename }, 'Created permission');
             }
         }
     }

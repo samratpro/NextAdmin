@@ -127,10 +127,48 @@ export * from './service';
 `;
     fs.writeFileSync(path.join(appPath, 'index.ts'), indexContent);
 
+    const testContent = `import { describe, it, expect, beforeAll } from 'vitest';
+import DatabaseManager from '../../../core/database';
+import { ${className} } from '../models';
+import ${serviceName} from '../service';
+
+beforeAll(() => {
+    process.env.NODE_ENV = 'test';
+    process.env.SECRET_KEY = 'test-secret-key-at-least-16-chars';
+    process.env.JWT_SECRET = 'test-jwt-secret-at-least-16-chars';
+    DatabaseManager.initialize(':memory:');
+    ${className}.createTable();
+});
+
+describe('${className} model', () => {
+    it('creates a record', () => {
+        const item = ${className}.objects.create<any>({ name: 'Test Item' });
+        expect(item.id).toBeDefined();
+        expect(item.name).toBe('Test Item');
+    });
+
+    it('retrieves a record by id', () => {
+        const created = ${className}.objects.create<any>({ name: 'Find Me' });
+        const found = ${serviceName}.getById(created.id!);
+        expect(found).not.toBeNull();
+        expect((found as any).name).toBe('Find Me');
+    });
+
+    it('lists all records', () => {
+        const items = ${serviceName}.list();
+        expect(Array.isArray(items)).toBe(true);
+        expect(items.length).toBeGreaterThan(0);
+    });
+});
+`;
+    fs.mkdirSync(path.join(appPath, '__tests__'), { recursive: true });
+    fs.writeFileSync(path.join(appPath, '__tests__', `${appName}.test.ts`), testContent);
+
     console.log('Created directory structure');
     console.log('Created default model');
     console.log('Created example service');
     console.log('Created example routes');
+    console.log('Created test scaffold');
 
     console.log('\nSUCCESS! Next steps:');
     console.log('1. Open src/index.ts');
@@ -138,6 +176,7 @@ export * from './service';
     console.log(`3. Add route import: import ${appName}Routes from './apps/${appName}/routes';`);
     console.log(`4. Register routes: await fastify.register(${appName}Routes);`);
     console.log('5. Restart the server');
+    console.log('6. Run npm test to execute tests');
 } catch (e) {
     console.error('Failed to create app:', e);
     process.exit(1);

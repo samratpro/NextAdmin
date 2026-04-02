@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { api } from '@/lib/api';
 
 interface ModelInfo {
     name: string;
@@ -23,7 +21,7 @@ interface SidebarProps {
 export default function Sidebar({ className = '' }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, getToken } = useAuthStore();
+    const { user } = useAuthStore();
     const [models, setModels] = useState<ModelInfo[]>([]);
     const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
 
@@ -33,11 +31,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
     const loadModels = async () => {
         try {
-            const token = getToken();
-            const response = await axios.get(`${API_URL}/api/admin/models`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const loadedModels = response.data.models || [];
+            const response = await api.get('/api/admin/models');
+            const loadedModels = response.models || [];
             setModels(loadedModels);
 
             // Expand all apps by default

@@ -5,35 +5,29 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { api } from '@/lib/api';
 
 export default function DashboardPage() {
-  const { user, logout, getToken } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const router = useRouter();
   const [totalUsers, setTotalUsers] = useState(0);
 
   useEffect(() => {
-    // Fetch total users count if superuser
     if (user?.isSuperuser) {
       const fetchUserCount = async () => {
         try {
-          const token = getToken();
-          const response = await axios.get(`${API_URL}/api/admin/users`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setTotalUsers(response.data.users?.length || 0);
+          const response = await api.get('/api/admin/users');
+          setTotalUsers(response.pagination?.total || 0);
         } catch (error) {
           console.error('Error fetching users:', error);
         }
       };
       fetchUserCount();
     }
-  }, [user, getToken]);
+  }, [user]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 

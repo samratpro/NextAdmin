@@ -4,6 +4,8 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import cookie from '@fastify/cookie';
+import logger from './core/logger';
 import settings from './config/settings';
 import DatabaseManager from './core/database';
 import emailService from './core/email';
@@ -38,8 +40,10 @@ const fastify = Fastify({
 });
 
 async function initializeDatabase() {
-  console.log('Initializing database...');
-  DatabaseManager.initialize(settings.database.path);
+  logger.info('Initializing database...');
+
+  // Use the full database config (engine + path/url) from settings
+  DatabaseManager.initialize(settings.database);
 
   const coreModels = [
     User,
@@ -54,15 +58,15 @@ async function initializeDatabase() {
   ];
 
   for (const model of coreModels) {
-    model.createTable();
+    await model.createTable();
   }
 
   for (const metadata of ModelRegistry.getAllModels()) {
-    metadata.model.createTable();
-    permissionService.createModelPermissions(metadata.model.name, metadata.displayName);
+    await metadata.model.createTable();
+    await permissionService.createModelPermissions(metadata.model.name, metadata.displayName);
   }
 
-  console.log('Database initialized successfully');
+  logger.info('Database initialized successfully');
 }
 
 async function start() {
@@ -72,6 +76,9 @@ async function start() {
 
     // Initialize email service
     emailService.initialize();
+
+    // Register Cookie support
+    await fastify.register(cookie);
 
     // Register Security Headers
     await fastify.register(helmet, { contentSecurityPolicy: false });
@@ -145,8 +152,22 @@ async function start() {
         tags: ['Health'],
         description: 'Health check endpoint'
       }
-    }, async () => {
-      return { status: 'ok', timestamp: new Date().toISOString() };
+    }, async (_request, reply) => {
+      let dbStatus: 'ok' | 'error' = 'error';
+      try {
+        const db = DatabaseManager.getAdapter();
+        await db.get('SELECT 1');
+        dbStatus = 'ok';
+      } catch {
+        // db probe failed
+      }
+
+      const healthy = dbStatus === 'ok';
+      reply.code(healthy ? 200 : 503).send({
+        status: healthy ? 'ok' : 'degraded',
+        db: dbStatus,
+        timestamp: new Date().toISOString(),
+      });
     });
 
     // Start server
@@ -155,18 +176,12 @@ async function start() {
       host: settings.host
     });
 
-    console.log(`
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║   🚀 Django-like Framework Server Started                    ║
-║                                                               ║
-║   Environment: ${settings.environment.padEnd(43)}║
-║   Server:      http://${settings.host}:${settings.port}${' '.repeat(35 - settings.host.length - settings.port.toString().length)}║
-║   Swagger UI:  http://${settings.host}:${settings.port}/docs${' '.repeat(30 - settings.host.length - settings.port.toString().length)}║
-║   Database:    ${settings.database.path.padEnd(43)}║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
-    `);
+    logger.info({
+      environment: settings.environment,
+      server: `http://${settings.host}:${settings.port}`,
+      swagger: `http://${settings.host}:${settings.port}/docs`,
+      database: settings.database.engine === 'postgresql' ? settings.database.url : settings.database.path,
+    }, 'Server started');
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
@@ -175,16 +190,16 @@ async function start() {
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\nShutting down gracefully...');
+  logger.info('Shutting down gracefully...');
   await fastify.close();
-  DatabaseManager.close();
+  await DatabaseManager.close();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\nShutting down gracefully...');
+  logger.info('Shutting down gracefully...');
   await fastify.close();
-  DatabaseManager.close();
+  await DatabaseManager.close();
   process.exit(0);
 });
 

@@ -2,6 +2,31 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import authService from './service';
 import { requireAuth } from '../../middleware/auth';
 import { z } from 'zod';
+import settings from '../../config/settings';
+
+const isProduction = settings.environment === 'production';
+
+function setCookies(reply: FastifyReply, accessToken: string, refreshToken: string) {
+  reply.setCookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 86400, // 1 day
+  });
+  reply.setCookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/auth/refresh',
+    maxAge: 604800, // 7 days
+  });
+}
+
+function clearCookies(reply: FastifyReply) {
+  reply.clearCookie('accessToken', { path: '/' });
+  reply.clearCookie('refreshToken', { path: '/auth/refresh' });
+}
 
 const registerSchema = z.object({
   username: z.string().min(3).max(150),
@@ -121,20 +146,37 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const data = loginSchema.parse(request.body);
       const result = await authService.login(data);
 
-      reply.code(result.success ? 200 : 401).send(result);
+      if (result.success && result.accessToken && result.refreshToken) {
+        setCookies(reply, result.accessToken, result.refreshToken);
+        // Don't expose tokens in the response body
+        const { accessToken, refreshToken, ...safeResult } = result;
+        reply.code(200).send(safeResult);
+      } else {
+        reply.code(401).send(result);
+      }
     } catch (error: any) {
       reply.code(400).send({ success: false, message: error.message });
     }
   });
 
-  // Refresh Token
+  // Logout
+  fastify.post('/auth/logout', {
+    schema: {
+      tags: ['Authentication'],
+      description: 'Logout and clear auth cookies',
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    clearCookies(reply);
+    reply.send({ success: true, message: 'Logged out' });
+  });
+
+  // Refresh Token — accepts cookie or body (for non-browser clients)
   fastify.post('/auth/refresh', {
     schema: {
       tags: ['Authentication'],
       description: 'Refresh access token',
       body: {
         type: 'object',
-        required: ['refreshToken'],
         properties: {
           refreshToken: { type: 'string' }
         }
@@ -142,10 +184,25 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { refreshToken } = refreshTokenSchema.parse(request.body);
+      const tokenFromCookie = (request as any).cookies?.refreshToken;
+      const body = request.body as any;
+      const tokenFromBody = body?.refreshToken ? refreshTokenSchema.parse(body).refreshToken : undefined;
+      const refreshToken = tokenFromCookie || tokenFromBody;
+
+      if (!refreshToken) {
+        reply.code(401).send({ success: false, message: 'No refresh token provided' });
+        return;
+      }
+
       const result = await authService.refreshAccessToken(refreshToken);
 
-      reply.code(result.success ? 200 : 401).send(result);
+      if (result.success && result.accessToken && result.refreshToken) {
+        setCookies(reply, result.accessToken, result.refreshToken);
+        const { accessToken, refreshToken: _rt, ...safeResult } = result;
+        reply.code(200).send(safeResult);
+      } else {
+        reply.code(401).send(result);
+      }
     } catch (error: any) {
       reply.code(400).send({ success: false, message: error.message });
     }

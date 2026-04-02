@@ -1,5 +1,6 @@
 import { Model } from './model';
 import { Field } from './fields';
+import logger from './logger';
 
 export interface AdminOptions {
     appName?: string;  // NEW: App/section name for grouping models (e.g., 'Shop', 'Auth')
@@ -85,7 +86,7 @@ class ModelRegistryClass {
         };
 
         this.models.set(modelName, metadata);
-        console.log(`📝 Registered model: ${modelName} (${tableName}) in app: ${appName}`);
+        logger.info({ modelName, tableName, appName }, 'Registered model');
     }
 
     getModel(modelName: string): ModelMetadata | undefined {

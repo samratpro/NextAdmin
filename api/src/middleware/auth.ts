@@ -13,14 +13,17 @@ export async function authenticate(
   reply: FastifyReply
 ): Promise<void> {
   try {
+    // Prefer httpOnly cookie, fall back to Authorization header for non-browser clients
+    const tokenFromCookie = (request as any).cookies?.accessToken as string | undefined;
     const authHeader = request.headers.authorization;
+    const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+    const token = tokenFromCookie || tokenFromHeader;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       reply.code(401).send({ error: 'No token provided' });
       return;
     }
 
-    const token = authHeader.substring(7);
     const user = authService.verifyToken(token);
 
     if (!user) {
@@ -99,7 +102,7 @@ export async function requireBasicAuthSuperuser(
       throw new Error('Invalid format');
     }
 
-    const user = User.objects.get<User>({ username });
+    const user = await User.objects.get<User>({ username });
     if (!user) {
       reply.header('WWW-Authenticate', 'Basic realm="Admin Access"');
       reply.code(401).send({ error: 'Invalid credentials' });

@@ -6,14 +6,12 @@ import { useAuthStore } from '@/store/authStore';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import Sidebar from '@/components/Sidebar';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { api } from '@/lib/api';
 
 interface ModelInfo {
     name: string;
     tableName: string;
-    appName: string;  // NEW: App name for grouping
+    appName: string;
     displayName: string;
     icon: string;
     permissions: string[];
@@ -21,7 +19,7 @@ interface ModelInfo {
 
 export default function ModelsPage() {
     const router = useRouter();
-    const { user, logout, getToken } = useAuthStore();
+    const { user, logout } = useAuthStore();
     const [models, setModels] = useState<ModelInfo[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -31,11 +29,8 @@ export default function ModelsPage() {
 
     const loadModels = async () => {
         try {
-            const token = getToken();
-            const response = await axios.get(`${API_URL}/api/admin/models`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setModels(response.data.models || []);
+            const response = await api.get('/api/admin/models');
+            setModels(response.models || []);
         } catch (error) {
             console.error('Error loading models:', error);
         } finally {
