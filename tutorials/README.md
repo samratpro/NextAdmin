@@ -10,7 +10,8 @@ If you are new to the project, this is the easiest reading path:
 4. [Model Registration Guide](./MODEL_REGISTRATION_GUIDE.md)
 5. [User and Authentication Guide](./USER_AND_AUTH_GUIDE.md)
 6. [Database and Migrations](./DATABASE_MIGRATIONS.md)
-7. [Port Configuration](./PORT_CONFIGURATION.md)
+7. [Email Configuration](./EMAIL_CONFIGURATION.md)
+8. [Port Configuration](./PORT_CONFIGURATION.md)
 
 Use these when you need deeper operational guidance:
 
@@ -26,6 +27,7 @@ If you are trying to do a specific task, start here:
 - understand how the admin and your public app fit together: [Public App Integration](./PUBLIC_APP_INTEGRATION.md)
 - understand model wiring and admin registration in detail: [Model Registration Guide](./MODEL_REGISTRATION_GUIDE.md)
 - set up login, registration, and protected routes: [User and Authentication Guide](./USER_AND_AUTH_GUIDE.md)
+- set up SMTP for verification and reset emails: [Email Configuration](./EMAIL_CONFIGURATION.md)
 - understand current database limits and production tradeoffs: [Production Deployment](./PRODUCTION_DEPLOYMENT.md)
 
 ## What These Docs Try to Do

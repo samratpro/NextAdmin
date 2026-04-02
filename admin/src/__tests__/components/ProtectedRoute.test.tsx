@@ -17,8 +17,10 @@ import { useAuthStore } from '@/store/authStore';
 
 const mockUseAuthStore = useAuthStore as jest.MockedFunction<typeof useAuthStore>;
 
+const mockLoadUser = jest.fn();
 beforeEach(() => {
   mockPush.mockClear();
+  mockLoadUser.mockClear();
 });
 
 describe('ProtectedRoute', () => {
@@ -26,6 +28,8 @@ describe('ProtectedRoute', () => {
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
+      loadUser: mockLoadUser,
+      user: { isStaff: true, isSuperuser: true }
     } as any);
 
     render(
@@ -41,6 +45,8 @@ describe('ProtectedRoute', () => {
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
+      loadUser: mockLoadUser,
+      user: null
     } as any);
 
     render(
@@ -56,6 +62,8 @@ describe('ProtectedRoute', () => {
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: false,
       isLoading: true,
+      loadUser: mockLoadUser,
+      user: null
     } as any);
 
     const { container } = render(

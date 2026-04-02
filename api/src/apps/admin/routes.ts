@@ -12,6 +12,22 @@ import {
   parseOrReply,
 } from './schemas';
 
+// Fields that cannot be modified via generic model routes for security
+const PROTECTED_FIELDS: Record<string, string[]> = {
+    'User': ['isSuperuser', 'isStaff', 'password', 'id'],
+};
+
+function getStrippedBody(modelName: string, body: any, isSuperuser: boolean): any {
+    const protectedFields = PROTECTED_FIELDS[modelName];
+    if (!protectedFields || isSuperuser) return body;
+
+    const newBody = { ...body };
+    for (const field of protectedFields) {
+        delete newBody[field];
+    }
+    return newBody;
+}
+
 // Helper function to check if model requires superuser access
 function isProtectedAuthModel(modelName: string): boolean {
     return ['User', 'Group', 'Permission'].includes(modelName);
@@ -266,7 +282,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             }
         }
 
-        const body = request.body as any;
+        const body = getStrippedBody(modelName, request.body, !!request.user?.isSuperuser);
 
         // Handle password hashing if supported
         const instance = new metadata.model();
@@ -319,7 +335,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             return;
         }
 
-        const body = request.body as any;
+        const body = getStrippedBody(modelName, request.body, !!request.user?.isSuperuser);
 
         // Handle password hashing if supported
         if (body.password && typeof (instance as any).setPassword === 'function') {
@@ -369,6 +385,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         const instance = await metadata.model.objects.get<any>({ id: parseInt(id) });
         if (!instance) {
             reply.code(404).send({ error: 'Instance not found' });
+            return;
+        }
+
+        // Security check: Protect superusers from deletion via generic routes
+        if (modelName === 'User' && (instance as any).isSuperuser && !request.user?.isSuperuser) {
+            reply.code(403).send({ error: 'Superuser accounts can only be deleted by another superuser' });
             return;
         }
 

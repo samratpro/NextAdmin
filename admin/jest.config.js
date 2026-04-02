@@ -1,8 +1,6 @@
-import type { Config } from 'jest';
-
-const config: Config = {
+module.exports = {
   testEnvironment: 'jest-environment-jsdom',
-  setupFiles: ['./jest.setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
@@ -13,5 +11,3 @@ const config: Config = {
   testMatch: ['**/__tests__/**/*.test.(ts|tsx)'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
 };
-
-export default config;

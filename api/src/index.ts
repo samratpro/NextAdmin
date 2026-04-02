@@ -81,11 +81,22 @@ async function start() {
     await fastify.register(cookie);
 
     // Register Security Headers
-    await fastify.register(helmet, { contentSecurityPolicy: false });
+    await fastify.register(helmet, {
+      contentSecurityPolicy: settings.environment === 'production' ? {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", "https:", "http:"],
+        },
+      } : false,
+      crossOriginEmbedderPolicy: false,
+    });
 
     // Register Rate Limiting
     await fastify.register(rateLimit, {
-      max: 500,
+      max: 100, // Reduced from 500
       timeWindow: '1 minute'
     });
 

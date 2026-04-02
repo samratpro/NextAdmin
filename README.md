@@ -285,6 +285,7 @@ The main guides live in [`tutorials/README.md`](./tutorials/README.md).
 - [Model Registration Guide](./tutorials/MODEL_REGISTRATION_GUIDE.md)
 - [User and Authentication Guide](./tutorials/USER_AND_AUTH_GUIDE.md)
 - [Public App Integration](./tutorials/PUBLIC_APP_INTEGRATION.md)
+- [Email Configuration](./tutorials/EMAIL_CONFIGURATION.md)
 - [Database and Migrations](./tutorials/DATABASE_MIGRATIONS.md)
 - [Port Configuration](./tutorials/PORT_CONFIGURATION.md)
 - [Rate Limiting](./tutorials/RATE_LIMITING.md)
