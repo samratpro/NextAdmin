@@ -113,7 +113,7 @@ This explicit registration avoids a lot of hidden framework behavior.
 
 Typical flow for an admin interaction:
 
-1. the user opens the Next.js admin app on port `8001`
+1. the user opens the Next.js admin app on port `7000`
 2. the admin app calls the API on port `8000`
 3. Fastify routes hit services and models in `api/`
 4. data is read from or written to SQLite
@@ -132,7 +132,7 @@ Typical flow for a public app interaction:
 Default local development ports:
 
 - API: `8000`
-- Admin: `8001`
+- Admin: `7000`
 - Public app: `3000` if you create one
 
 Keeping the admin off port `3000` leaves the default frontend port available for the actual user-facing app.

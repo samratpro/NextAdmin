@@ -26,7 +26,7 @@ const envSchema = z.object({
   EMAIL_PASSWORD: z.string().default(''),
   EMAIL_FROM: z.string().default('noreply@example.com'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
-  ADMIN_URL: z.string().default('http://localhost:8001'),
+  ADMIN_URL: z.string().default('http://localhost:7000'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -132,7 +132,7 @@ const settings: AppSettings = {
   },
 
   cors: {
-    origin: env.CORS_ORIGIN?.split(',') || ['http://localhost:8001', 'http://localhost:3000'],
+    origin: env.CORS_ORIGIN?.split(',') || ['http://localhost:7000', 'http://localhost:3000'],
     credentials: true,
   },
 

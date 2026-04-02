@@ -30,7 +30,7 @@ The goal is not to clone Django line-for-line. The goal is to offer a familiar a
 Default local ports:
 
 - API: `http://localhost:8000`
-- Admin: `http://localhost:8001`
+- Admin: `http://localhost:7000`
 - Public app: `http://localhost:3000` if you build one alongside this repo
 
 ## How the Admin Fits With Your App
@@ -230,8 +230,8 @@ Example local backend config:
 ```env
 PORT=8000
 HOST=0.0.0.0
-CORS_ORIGIN=http://localhost:8001,http://localhost:3000
-ADMIN_URL=http://localhost:8001
+CORS_ORIGIN=http://localhost:7000,http://localhost:3000
+ADMIN_URL=http://localhost:7000
 FRONTEND_URL=http://localhost:3000
 ```
 
@@ -294,7 +294,7 @@ The main guides live in [`tutorials/README.md`](./tutorials/README.md).
 
 ## Default Service URLs
 
-- Admin UI: `http://localhost:8001`
+- Admin UI: `http://localhost:7000`
 - Swagger docs: `http://localhost:8000/docs`
 - API base URL for the admin app: `http://localhost:8000`
 

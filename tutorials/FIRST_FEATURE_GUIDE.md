@@ -145,7 +145,7 @@ npm run dev
 
 Open:
 
-- Admin: `http://localhost:8001`
+- Admin: `http://localhost:7000`
 - API docs: `http://localhost:8000/docs`
 
 After logging in, you should see `Blog Posts` in the admin sidebar.

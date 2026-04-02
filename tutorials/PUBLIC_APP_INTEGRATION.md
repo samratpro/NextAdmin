@@ -17,7 +17,7 @@ Think of the project as three independent pieces:
 | Piece | Default URL | Purpose |
 | --- | --- | --- |
 | API | `http://localhost:8000` | auth, business logic, models, data |
-| Admin | `http://localhost:8001` | internal management UI |
+| Admin | `http://localhost:7000` | internal management UI |
 | Public app | `http://localhost:3000` | the product your users actually use |
 
 The admin is not meant to be embedded inside the user app.
@@ -95,7 +95,7 @@ npm run dev
 Default URLs:
 
 - API: `http://localhost:8000`
-- Admin: `http://localhost:8001`
+- Admin: `http://localhost:7000`
 
 Your public app should usually run on:
 
@@ -110,8 +110,8 @@ Set backend environment variables like this:
 ```env
 PORT=8000
 HOST=0.0.0.0
-CORS_ORIGIN=http://localhost:8001,http://localhost:3000
-ADMIN_URL=http://localhost:8001
+CORS_ORIGIN=http://localhost:7000,http://localhost:3000
+ADMIN_URL=http://localhost:7000
 FRONTEND_URL=http://localhost:3000
 ```
 

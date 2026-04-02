@@ -13,14 +13,14 @@ That split is intentional:
 | Service | Port | Purpose |
 | --- | --- | --- |
 | API | `8000` | Fastify backend and Swagger docs |
-| Admin | `8001` | Next.js admin application |
+| Admin | `7000` | Next.js admin application |
 | Public app | `3000` | Your own frontend, if you build one |
 
 ## Why Port 3000 Matters
 
 Port `3000` is intentionally left open for the user-facing application.
 
-The admin panel runs on `8001`, not `3000`, so product development and administration stay clearly separated.
+The admin panel runs on `7000`, not `3000`, so product development and administration stay clearly separated.
 
 ## API Configuration
 
@@ -29,8 +29,8 @@ The admin panel runs on `8001`, not `3000`, so product development and administr
 ```env
 PORT=8000
 HOST=0.0.0.0
-CORS_ORIGIN=http://localhost:8001,http://localhost:3000
-ADMIN_URL=http://localhost:8001
+CORS_ORIGIN=http://localhost:7000,http://localhost:3000
+ADMIN_URL=http://localhost:7000
 FRONTEND_URL=http://localhost:3000
 ```
 
@@ -70,7 +70,7 @@ When everything is running:
 
 - API base: `http://localhost:8000`
 - Swagger docs: `http://localhost:8000/docs`
-- Admin UI: `http://localhost:8001`
+- Admin UI: `http://localhost:7000`
 
 If you create a public frontend, it will usually live at:
 
@@ -129,7 +129,7 @@ Check:
 Use this mental model:
 
 - `8000` is the backend
-- `8001` is the admin
+- `7000` is the admin
 - `3000` is reserved for your product frontend
 
 That separation keeps the system easier to reason about and fits the framework's decoupled design.
