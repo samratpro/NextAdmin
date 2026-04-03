@@ -20,8 +20,11 @@ interface ModelMetadata {
     permissions: string[];
     fields: Record<string, FieldMetadata>;
     adminOptions: {
+        listDisplay?: string[];
         searchFields?: string[];
         filterFields?: string[];
+        excludeFields?: string[];
+        relatedFields?: Record<string, string>;
     };
 }
 
@@ -817,17 +820,17 @@ export default function ModelDetailPage() {
                                                                 />
                                                             </th>
 
-                                                            {Object.entries(metadata.fields)
-                                                                .filter(([key]) => !key.toLowerCase().includes('password'))
-                                                                .slice(0, 6)
-                                                                .map(([key, field]: [string, any]) => (
+                                                            {(metadata.adminOptions.listDisplay?.length
+                                                                ? metadata.adminOptions.listDisplay.filter(k => metadata.fields[k])
+                                                                : Object.keys(metadata.fields).filter(k => !k.toLowerCase().includes('password')).slice(0, 6)
+                                                            ).map((key) => (
                                                                     <th
                                                                         key={key}
                                                                         className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gradient-to-r hover:from-indigo-100 hover:to-purple-100 transition-colors"
                                                                         onClick={() => handleSort(key)}
                                                                     >
                                                                         <div className="flex items-center space-x-1">
-                                                                            <span>{key}</span>
+                                                                            <span>{key.replace(/([A-Z])/g, ' $1').trim()}</span>
                                                                             {sortField === key && (
                                                                                 <svg className={`w-4 h-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -854,12 +857,12 @@ export default function ModelDetailPage() {
                                                                     />
                                                                 </td>
 
-                                                                {Object.entries(metadata.fields)
-                                                                    .filter(([key]) => !key.toLowerCase().includes('password'))
-                                                                    .slice(0, 6)
-                                                                    .map(([key, field]: [string, any]) => (
+                                                                {(metadata.adminOptions.listDisplay?.length
+                                                                    ? metadata.adminOptions.listDisplay.filter(k => metadata.fields[k])
+                                                                    : Object.keys(metadata.fields).filter(k => !k.toLowerCase().includes('password')).slice(0, 6)
+                                                                ).map((key) => (
                                                                         <td key={key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                                            {renderValue(item[key], field)}
+                                                                            {renderValue(item[key], metadata.fields[key])}
                                                                         </td>
                                                                     ))}
                                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
