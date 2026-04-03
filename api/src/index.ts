@@ -106,6 +106,8 @@ async function start() {
       credentials: settings.cors.credentials
     });
 
+    const clientHost = settings.host === '0.0.0.0' ? 'localhost' : settings.host;
+
     // Register Swagger
     await fastify.register(swagger, {
       openapi: {
@@ -116,7 +118,7 @@ async function start() {
         },
         servers: [
           {
-            url: `http://${settings.host}:${settings.port}`,
+            url: `http://${clientHost}:${settings.port}`,
             description: 'Development server'
           }
         ],

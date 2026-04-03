@@ -7,31 +7,35 @@ DatabaseManager.initialize(settings.database.path);
 
 console.log('--- Permissions Cleanup ---');
 
-try {
-    const targetModel = 'Product';
+async function main() {
+    try {
+        const targetModel = 'Product';
 
-    // Check count first
-    const count = Permission.objects.filter({ modelName: targetModel }).count();
+        // Check count first
+        const count = await Permission.objects.filter({ modelName: targetModel }).count();
 
-    if (count > 0) {
-        console.log(`Found ${count} stale permissions for '${targetModel}'. Deleting...`);
-        const deleted = Permission.objects.filter({ modelName: targetModel }).delete();
-        console.log(`Successfully deleted ${deleted} permissions.`);
-    } else {
-        console.log(`No permissions found for '${targetModel}'.`);
+        if (count > 0) {
+            console.log(`Found ${count} stale permissions for '${targetModel}'. Deleting...`);
+            const deleted = await Permission.objects.filter({ modelName: targetModel }).delete();
+            console.log(`Successfully deleted ${deleted} permissions.`);
+        } else {
+            console.log(`No permissions found for '${targetModel}'.`);
+        }
+
+        // Also check lowercase just in case
+        const targetLower = 'product';
+        const countLower = await Permission.objects.filter({ modelName: targetLower }).count();
+        if (countLower > 0) {
+            console.log(`Found ${countLower} stale permissions for '${targetLower}'. Deleting...`);
+            const deleted = await Permission.objects.filter({ modelName: targetLower }).delete();
+            console.log(`Successfully deleted ${deleted} permissions.`);
+        }
+
+    } catch (e) {
+        console.error('Error during cleanup:', e);
     }
-
-    // Also check lowercase just in case
-    const targetLower = 'product';
-    const countLower = Permission.objects.filter({ modelName: targetLower }).count();
-    if (countLower > 0) {
-        console.log(`Found ${countLower} stale permissions for '${targetLower}'. Deleting...`);
-        const deleted = Permission.objects.filter({ modelName: targetLower }).delete();
-        console.log(`Successfully deleted ${deleted} permissions.`);
-    }
-
-} catch (e) {
-    console.error('Error during cleanup:', e);
+    
+    process.exit(0);
 }
 
-process.exit(0);
+main();

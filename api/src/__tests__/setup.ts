@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi, beforeAll, afterAll } from 'vitest';
 import DatabaseManager from '../core/database';
 
 // Prevent pino-pretty from being loaded in the test environment.

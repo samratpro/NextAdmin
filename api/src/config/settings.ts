@@ -132,7 +132,11 @@ const settings: AppSettings = {
   },
 
   cors: {
-    origin: env.CORS_ORIGIN?.split(',') || ['http://localhost:7000', 'http://localhost:3000'],
+    origin: env.CORS_ORIGIN?.split(',') || [
+      'http://localhost:7000', 
+      'http://localhost:3000',
+      `http://localhost:${env.PORT}`
+    ],
     credentials: true,
   },
 
