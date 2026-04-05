@@ -13,6 +13,7 @@ export interface AdminOptions {
     orderBy?: string;
     readonly?: boolean;
     excludeFields?: string[];
+    relatedFields?: Record<string, string>;
 }
 
 export interface ModelMetadata {

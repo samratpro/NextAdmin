@@ -1,6 +1,10 @@
 # Database and Migrations
 
+Nango does not use Prisma in this repo.
+
 Nango currently uses a lightweight sync-on-start model instead of a full migration framework.
+
+That means Prisma commands such as `npx prisma migrate dev` or `npx prisma db push` do not apply to this codebase as-is.
 
 That makes early development fast, but it also means you need to be explicit when changing an existing schema.
 
@@ -33,6 +37,16 @@ If you change a schema during early local development and you do not care about 
 2. delete `api/db.sqlite3`
 3. restart the API
 4. recreate any necessary users or seed data
+
+The helper commands in `api/package.json` are informational:
+
+```bash
+cd api
+npm run migrate
+npm run makemigrations
+```
+
+They explain the current sync-on-start workflow, but they do not generate Prisma migrations or Django-style migration files.
 
 ## Manual Schema Changes
 

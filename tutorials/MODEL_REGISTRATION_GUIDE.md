@@ -210,6 +210,136 @@ export class BlogPost extends Model {
 }
 ```
 
+## `ForeignKey` vs `relatedFields`
+
+There are two valid ways to represent relationships in Nango admin.
+
+### Use `ForeignKey` when the ORM relationship is real
+
+Use `ForeignKey(...)` when the field should be treated as a true model relationship at the schema level.
+
+Example:
+
+```typescript
+import { Model } from '../../core/model';
+import { CharField, ForeignKey } from '../../core/fields';
+import { registerAdmin } from '../../core/adminRegistry';
+
+@registerAdmin({
+  appName: 'Content',
+  displayName: 'Categories',
+  listDisplay: ['id', 'name']
+})
+export class Category extends Model {
+  static getTableName(): string {
+    return 'blog_categories';
+  }
+
+  name = new CharField({ maxLength: 100 });
+}
+
+@registerAdmin({
+  appName: 'Content',
+  displayName: 'Posts',
+  listDisplay: ['id', 'title', 'categoryId']
+})
+export class Post extends Model {
+  static getTableName(): string {
+    return 'blog_posts';
+  }
+
+  title = new CharField({ maxLength: 255 });
+  categoryId = new ForeignKey('Category', {
+    relatedTable: 'blog_categories',
+    onDelete: 'CASCADE'
+  });
+}
+```
+
+Use this when:
+
+- the field really is a relational foreign key
+- you want schema-level relationship metadata
+- you want the admin to recognize the field automatically as a relation
+
+### Use `relatedFields` when the stored field is still a plain integer ID
+
+Some apps already store relations as plain integer fields like `userId`, `projectId`, `appId`, or `createdById`.
+
+In that case, you do not have to refactor the field into `ForeignKey(...)` just to make admin rendering nicer.
+
+You can keep the field as `IntegerField` and tell the admin how to treat it:
+
+```typescript
+import { Model } from '../../core/model';
+import { CharField, IntegerField } from '../../core/fields';
+import { registerAdmin } from '../../core/adminRegistry';
+
+@registerAdmin({
+  appName: 'SEO',
+  displayName: 'On-Page Records',
+  listDisplay: ['id', 'seoProjectId', 'recordDate', 'keywordPicked'],
+  searchFields: ['keywordPicked'],
+  relatedFields: {
+    seoProjectId: 'SeoProject',
+    createdById: 'User'
+  }
+})
+export class OnPageRecord extends Model {
+  static getTableName(): string {
+    return 'seo_on_page';
+  }
+
+  seoProjectId = new IntegerField();
+  recordDate = new CharField({ maxLength: 50 });
+  keywordPicked = new CharField({ maxLength: 255 });
+  createdById = new IntegerField();
+}
+```
+
+Use this when:
+
+- the database field already exists as an integer ID
+- you want admin dropdowns and labels without changing the schema shape
+- the field is relation-like in admin, even if the ORM field is not a true `ForeignKey`
+
+## How the Admin Uses Relation Metadata
+
+When relation metadata is available through either:
+
+- `ForeignKey(...)`
+- or `@registerAdmin({ relatedFields: { ... } })`
+
+the admin can:
+
+- render relation dropdowns in forms
+- show human-readable relation labels in list views
+- avoid showing only raw IDs when related model data is available
+
+In practice, the admin tries to label related objects using useful fields such as:
+
+- `name`
+- `title`
+- `username`
+- `displayName`
+- `clientName`
+- `mainTopicName`
+- `slug`
+- `websiteUrl`
+- `email`
+- `url`
+
+If none of those exist, it falls back to a model-and-id label such as `User #3`.
+
+## Recommendation
+
+Use this rule of thumb:
+
+- choose `ForeignKey` for real model relationships
+- choose `relatedFields` for legacy or intentionally plain integer ID columns that should still behave like relations in the admin
+
+That keeps Nango explicit while still giving the admin enough metadata to render useful labels.
+
 ## Common Admin Options
 
 ```typescript

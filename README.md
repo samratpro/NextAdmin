@@ -199,6 +199,28 @@ await fastify.register(blogRoutes);
 
 Imported models that use `@registerAdmin(...)` are now auto-created on startup and show up in the admin once the API restarts.
 
+### Database Changes and Migrations
+
+There is already a migration guide in [Database and Migrations](./tutorials/DATABASE_MIGRATIONS.md).
+
+Important: this repo is not using Prisma right now. Nango's backend uses its own lightweight ORM plus a sync-on-start table creation flow, so Prisma migration commands are not part of the current workflow.
+
+For quick reference:
+
+```bash
+cd api
+npm run migrate
+npm run makemigrations
+```
+
+Those commands are guidance helpers, not migration generators. For real schema changes today:
+
+- new models: import them and restart the API
+- disposable local schema changes: reset `api/db.sqlite3`
+- production or data-preserving changes: run explicit SQL
+
+Full details live in [Database and Migrations](./tutorials/DATABASE_MIGRATIONS.md).
+
 ## Auth and Public Frontend Integration
 
 The backend already ships with auth endpoints that both the admin and your public app can use:

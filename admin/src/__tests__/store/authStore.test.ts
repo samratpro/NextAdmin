@@ -28,29 +28,49 @@ describe('authStore.login', () => {
     });
 
     const { result } = renderHook(() => useAuthStore());
-    let success: boolean;
+    let status: 'ok' | 'invalid' | 'forbidden';
 
     await act(async () => {
-      success = await result.current.login('a@test.com', 'password');
+      status = await result.current.login('a@test.com', 'password');
     });
 
-    expect(success!).toBe(true);
+    expect(status!).toBe('ok');
     expect(result.current.isAuthenticated).toBe(true);
     expect(result.current.user?.email).toBe('a@test.com');
   });
 
-  it('returns false when API returns success: false', async () => {
+  it('returns invalid when API returns success: false', async () => {
     mockApi.login.mockResolvedValue({ success: false });
 
     const { result } = renderHook(() => useAuthStore());
-    let success: boolean;
+    let status: 'ok' | 'invalid' | 'forbidden';
 
     await act(async () => {
-      success = await result.current.login('bad@test.com', 'wrong');
+      status = await result.current.login('bad@test.com', 'wrong');
     });
 
-    expect(success!).toBe(false);
+    expect(status!).toBe('invalid');
     expect(result.current.isAuthenticated).toBe(false);
+  });
+
+  it('returns forbidden for non-staff users and clears the server session', async () => {
+    mockApi.login.mockResolvedValue({
+      success: true,
+      user: { userId: 2, email: 'b@test.com', username: 'bob', isStaff: false, isSuperuser: false },
+    });
+    mockApi.post.mockResolvedValue({ success: true });
+
+    const { result } = renderHook(() => useAuthStore());
+    let status: 'ok' | 'invalid' | 'forbidden';
+
+    await act(async () => {
+      status = await result.current.login('b@test.com', 'password');
+    });
+
+    expect(status!).toBe('forbidden');
+    expect(mockApi.post).toHaveBeenCalledWith('/auth/logout', {});
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.user).toBeNull();
   });
 
   it('does not use localStorage for token storage', async () => {

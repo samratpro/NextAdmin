@@ -11,6 +11,11 @@ import Fieldset from '@/components/Fieldset';
 import Sidebar from '@/components/Sidebar';
 import DualListBox from '@/components/DualListBox';
 import { api } from '@/lib/api';
+import {
+    findRelatedOptionById,
+    getRelationDisplayLabel,
+    resolveRelatedModel
+} from '@/lib/adminRelations';
 
 interface ModelMetadata {
     model: any;
@@ -81,6 +86,10 @@ export default function ModelDetailPage() {
     const isGroupModel = modelName === 'Group';
     const [groupPermissions, setGroupPermissions] = useState<number[]>([]);
 
+    const getFieldRelatedModel = (fieldName: string, field: FieldMetadata) => {
+        return resolveRelatedModel(fieldName, field.relatedModel, metadata?.adminOptions.relatedFields);
+    };
+
     useEffect(() => {
         if (modelName) {
             loadMetadata();
@@ -111,7 +120,7 @@ export default function ModelDetailPage() {
 
     const loadRelatedData = async (relatedModel: string) => {
         try {
-            const response = await api.get(`/api/admin/models/${relatedModel}/data`);
+            const response = await api.get(`/api/admin/models/${relatedModel}/data?page=1&limit=100`);
             setRelatedData(prev => ({ ...prev, [relatedModel]: response.data || [] }));
         } catch (error) {
             console.error(`Error loading ${relatedModel} data:`, error);
@@ -123,10 +132,20 @@ export default function ModelDetailPage() {
             const response = await api.get(`/api/admin/models/${modelName}`);
             setMetadata(response.metadata);
 
+            const relationModels = new Set<string>();
             Object.entries(response.metadata.fields).forEach(([key, field]: [string, any]) => {
-                if (field.type === 'ForeignKey' && field.relatedModel) {
-                    loadRelatedData(field.relatedModel);
+                const relatedModel = resolveRelatedModel(
+                    key,
+                    field.relatedModel,
+                    response.metadata.adminOptions?.relatedFields
+                );
+                if (relatedModel) {
+                    relationModels.add(relatedModel);
                 }
+            });
+
+            relationModels.forEach((relatedModel) => {
+                loadRelatedData(relatedModel);
             });
 
             const initialForm: Record<string, any> = {};
@@ -488,6 +507,7 @@ export default function ModelDetailPage() {
 
     const renderFieldInput = (fieldName: string, field: FieldMetadata) => {
         const value = formData[fieldName] ?? '';
+        const relatedModel = getFieldRelatedModel(fieldName, field);
 
         // Password fields - render as password input (or skip in edit mode)
         if (fieldName.toLowerCase().includes('password')) {
@@ -503,8 +523,8 @@ export default function ModelDetailPage() {
             );
         }
 
-        if (field.type === 'ForeignKey' && field.relatedModel) {
-            const options = relatedData[field.relatedModel] || [];
+        if (relatedModel) {
+            const options = relatedData[relatedModel] || [];
             return (
                 <select
                     value={value}
@@ -515,7 +535,7 @@ export default function ModelDetailPage() {
                     <option value="">---------</option>
                     {options.map((option: any) => (
                         <option key={option.id} value={option.id}>
-                            {option.name || option.title || option.username || `${field.relatedModel} #${option.id}`}
+                            {getRelationDisplayLabel(option, relatedModel)}
                         </option>
                     ))}
                 </select>
@@ -574,20 +594,22 @@ export default function ModelDetailPage() {
         );
     };
 
-    const renderValue = (value: any, field: FieldMetadata) => {
+    const renderValue = (fieldName: string, value: any, field: FieldMetadata) => {
         if (value === null || value === undefined) return <span className="text-gray-400">-</span>;
 
-        if (field.type === 'ForeignKey' && field.relatedModel) {
-            const options = relatedData[field.relatedModel] || [];
-            const relatedObj = options.find((opt: any) => opt.id === value);
+        const relatedModel = getFieldRelatedModel(fieldName, field);
+
+        if (relatedModel) {
+            const options = relatedData[relatedModel] || [];
+            const relatedObj = findRelatedOptionById(options, value);
             if (relatedObj) {
                 return (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {relatedObj.name || relatedObj.title || relatedObj.username || `#${value}`}
+                        {getRelationDisplayLabel(relatedObj, relatedModel, value)}
                     </span>
                 );
             }
-            return value ? `#${value}` : '-';
+            return value ? getRelationDisplayLabel(undefined, relatedModel, value) : '-';
         }
 
         if (field.type === 'BooleanField') {
@@ -846,7 +868,7 @@ export default function ModelDetailPage() {
                                                                     : Object.keys(metadata.fields).filter(k => !k.toLowerCase().includes('password')).slice(0, 6)
                                                                 ).map((key) => (
                                                                         <td key={key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                                            {renderValue(item[key], metadata.fields[key])}
+                                                                            {renderValue(key, item[key], metadata.fields[key])}
                                                                         </td>
                                                                     ))}
                                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
