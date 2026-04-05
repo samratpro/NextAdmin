@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { requireStaff, requireSuperuser } from '../../middleware/auth';
 import { ModelRegistry } from '../../core/ModelRegistry';
+import DatabaseManager from '../../core/database';
 import { User } from '../auth/models';
 import permissionService from '../auth/permissionService';
 import {
@@ -151,7 +152,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             return;
         }
         const { modelName } = paramResult.data;
-        const { page, limit, orderBy = 'id', orderDirection = 'DESC' } = queryResult.data;
+        const { page, limit, orderBy = 'id', orderDirection = 'DESC', search } = queryResult.data;
 
         const metadata = ModelRegistry.getModel(modelName);
         if (!metadata) {
@@ -173,17 +174,43 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             }
         }
 
-        let query = metadata.model.objects.all<any>();
+        const tableName = metadata.model.getTableName();
+        const db = DatabaseManager.getAdapter();
+        const validFields = Object.keys(metadata.model.getFields());
 
-        // Apply ordering
-        query = query.orderBy(orderBy, orderDirection as 'ASC' | 'DESC');
+        // Validate orderBy to prevent SQL injection
+        const safeOrderBy = (validFields.includes(orderBy) || orderBy === 'id') ? orderBy : 'id';
 
-        // Apply pagination
+        // Build search WHERE clause
+        let whereClause = '';
+        const searchParams: any[] = [];
+        const searchTerm = search?.trim();
+        if (searchTerm) {
+            const searchFields = (metadata.adminOptions.searchFields || [])
+                .filter(f => validFields.includes(f));
+            if (searchFields.length > 0) {
+                const pattern = `%${searchTerm}%`;
+                whereClause = ` WHERE (${searchFields.map(f => `${f} LIKE ?`).join(' OR ')})`;
+                searchParams.push(...searchFields.map(() => pattern));
+            }
+        }
+
+        const total = (await db.get<{ count: number }>(
+            `SELECT COUNT(*) as count FROM ${tableName}${whereClause}`,
+            searchParams
+        ))?.count ?? 0;
+
         const offset = (page - 1) * limit;
-        query = query.offset(offset).limit(limit);
+        const rows = await db.all<Record<string, any>>(
+            `SELECT * FROM ${tableName}${whereClause} ORDER BY ${safeOrderBy} ${orderDirection} LIMIT ${limit} OFFSET ${offset}`,
+            searchParams
+        );
 
-        const instances = await query.all();
-        const total = await metadata.model.objects.count();
+        const instances = rows.map(row => {
+            const instance = new (metadata.model as any)();
+            Object.assign(instance, row);
+            return instance;
+        });
 
         // Filter excluded fields (security)
         const excluded = metadata.adminOptions.excludeFields || [];

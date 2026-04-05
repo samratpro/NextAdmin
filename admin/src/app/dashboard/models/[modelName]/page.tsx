@@ -48,7 +48,6 @@ export default function ModelDetailPage() {
 
     const [metadata, setMetadata] = useState<ModelMetadata | null>(null);
     const [data, setData] = useState<any[]>([]);
-    const [filteredData, setFilteredData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingItem, setEditingItem] = useState<any | null>(null);
@@ -100,31 +99,15 @@ export default function ModelDetailPage() {
         if (modelName) loadData();
     }, [currentPage, sortField, sortDirection]);
 
-    // Search functionality
+    // Debounced server-side search
     useEffect(() => {
-        if (!metadata || !data.length) {
-            setFilteredData(data);
-            return;
-        }
-
-        if (!searchTerm.trim()) {
-            setFilteredData(data);
-            return;
-        }
-
-        const searchFields = metadata.adminOptions.searchFields || Object.keys(metadata.fields).slice(0, 3);
-        const lowerSearch = searchTerm.toLowerCase();
-
-        const filtered = data.filter(item => {
-            return searchFields.some(field => {
-                const value = item[field];
-                if (value === null || value === undefined) return false;
-                return String(value).toLowerCase().includes(lowerSearch);
-            });
-        });
-
-        setFilteredData(filtered);
-    }, [searchTerm, data, metadata]);
+        if (!modelName) return;
+        const timer = setTimeout(() => {
+            setCurrentPage(1);
+            loadData(1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     const loadRelatedData = async (relatedModel: string) => {
         try {
@@ -165,16 +148,17 @@ export default function ModelDetailPage() {
         }
     };
 
-    const loadData = async () => {
+    const loadData = async (pageOverride?: number) => {
         if (error) return; // Don't load if error
         try {
+            const page = pageOverride ?? currentPage;
             const orderBy = sortField || 'id';
             const orderDirection = sortDirection.toUpperCase();
+            const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const response = await api.get(
-                `/api/admin/models/${modelName}/data?page=${currentPage}&limit=${itemsPerPage}&orderBy=${orderBy}&orderDirection=${orderDirection}`
+                `/api/admin/models/${modelName}/data?page=${page}&limit=${itemsPerPage}&orderBy=${orderBy}&orderDirection=${orderDirection}${searchParam}`
             );
             setData(response.data || []);
-            setFilteredData(response.data || []);
             if (response.pagination) {
                 setServerTotalPages(response.pagination.totalPages || 1);
             }
@@ -427,7 +411,7 @@ export default function ModelDetailPage() {
 
     // Apply filters, sorting, and pagination
     const getProcessedData = () => {
-        let processed = [...filteredData];
+        let processed = [...data];
 
         // Apply additional filters
         Object.entries(activeFilters).forEach(([field, value]) => {

@@ -13,7 +13,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<'ok' | 'invalid' | 'forbidden'>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
   checkAuth: () => boolean;
@@ -29,18 +29,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await api.login(email, password);
 
       if (response.success) {
-        // Tokens are set as httpOnly cookies by the server — no localStorage needed
-        set({
-          user: response.user,
-          isAuthenticated: true,
-        });
-        return true;
+        if (!response.user.isStaff && !response.user.isSuperuser) {
+          // Valid credentials but not an admin/staff — revoke server session immediately
+          try { await api.post('/auth/logout', {}); } catch {}
+          return 'forbidden';
+        }
+        set({ user: response.user, isAuthenticated: true });
+        return 'ok';
       }
 
-      return false;
+      return 'invalid';
     } catch (error) {
       console.error('Login error:', error);
-      return false;
+      return 'invalid';
     }
   },
 

@@ -18,12 +18,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const success = await login(email, password);
+      const result = await login(email, password);
 
-      if (success) {
+      if (result === 'ok') {
         router.push('/dashboard');
+      } else if (result === 'forbidden') {
+        setError('Access denied. This panel is for admin and staff accounts only.');
       } else {
-        setError('Invalid credentials or email not verified');
+        setError('User not found or incorrect password.');
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed');
