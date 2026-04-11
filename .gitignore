@@ -28,6 +28,14 @@ db.sqlite3
 */.env
 **/.env
 
+# Google Drive credentials/tokens
+.google_credentials.json
+.google_tokens.json
+*/.google_credentials.json
+**/.google_credentials.json
+*/.google_tokens.json
+**/.google_tokens.json
+
 # Logs
 logs/
 *.log

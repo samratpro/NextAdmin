@@ -98,6 +98,83 @@ class ApiClient {
     const response = await this.client.delete(endpoint);
     return response.data;
   }
+
+  // Backup endpoints
+  async getBackupDatabases() {
+    const response = await this.client.get('/api/admin/backup/databases');
+    return response.data;
+  }
+
+  async createBackup(dbPath: string) {
+    const response = await this.client.post('/api/admin/backup/create', { dbPath });
+    return response.data;
+  }
+
+  async listBackups() {
+    const response = await this.client.get('/api/admin/backup/list');
+    return response.data;
+  }
+
+  getDownloadDbUrl(dbPath: string): string {
+    return `${API_URL}/api/admin/backup/download-db?dbPath=${encodeURIComponent(dbPath)}`;
+  }
+
+  getBackupFileDownloadUrl(filename: string): string {
+    return `${API_URL}/api/admin/backup/files/${encodeURIComponent(filename)}/download`;
+  }
+
+  async deleteBackup(filename: string) {
+    const response = await this.client.delete(`/api/admin/backup/files/${encodeURIComponent(filename)}`);
+    return response.data;
+  }
+
+  async restoreBackup(file: File, dbPath?: string): Promise<any> {
+    const form = new FormData();
+    form.append('file', file);
+    if (dbPath) form.append('dbPath', dbPath);
+    const response = await this.client.post('/api/admin/backup/restore', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async getDriveStatus(): Promise<{
+    configured: boolean;
+    authMethod: 'oauth2' | 'service_account' | null;
+    canConnect: boolean;
+    credentialsSource: 'file' | 'env' | null;
+    folderName: string;
+  }> {
+    const response = await this.client.get('/api/admin/backup/drive/status');
+    return response.data;
+  }
+
+  async getDriveAuthUrl(): Promise<{ authUrl: string }> {
+    const response = await this.client.get('/api/admin/backup/drive/auth-url');
+    return response.data;
+  }
+
+  async uploadDriveCredentials(file: File): Promise<{ success: boolean; clientId: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await this.client.post('/api/admin/backup/drive/credentials', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async removeDriveCredentials(): Promise<void> {
+    await this.client.delete('/api/admin/backup/drive/credentials');
+  }
+
+  async disconnectDrive(): Promise<void> {
+    await this.client.delete('/api/admin/backup/drive/disconnect');
+  }
+
+  async sendBackupToDrive(filename: string): Promise<{ success: boolean; fileId: string; webViewLink: string; folder: string }> {
+    const response = await this.client.post(`/api/admin/backup/files/${encodeURIComponent(filename)}/send-to-drive`);
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();

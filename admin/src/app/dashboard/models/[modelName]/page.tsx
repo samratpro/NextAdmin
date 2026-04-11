@@ -535,7 +535,7 @@ export default function ModelDetailPage() {
                     <option value="">---------</option>
                     {options.map((option: any) => (
                         <option key={option.id} value={option.id}>
-                            {getRelationDisplayLabel(option, relatedModel)}
+                            {getRelationDisplayLabel(option, relatedModel, fieldName)}
                         </option>
                     ))}
                 </select>
@@ -605,11 +605,11 @@ export default function ModelDetailPage() {
             if (relatedObj) {
                 return (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {getRelationDisplayLabel(relatedObj, relatedModel, value)}
+                        {getRelationDisplayLabel(relatedObj, relatedModel, fieldName, value)}
                     </span>
                 );
             }
-            return value ? getRelationDisplayLabel(undefined, relatedModel, value) : '-';
+            return value ? getRelationDisplayLabel(undefined, relatedModel, fieldName, value) : '-';
         }
 
         if (field.type === 'BooleanField') {

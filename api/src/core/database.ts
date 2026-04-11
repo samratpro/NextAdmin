@@ -1,12 +1,16 @@
 import type { DbAdapter } from './db/types';
 import { SQLiteAdapter } from './db/sqliteAdapter';
 import { PostgresAdapter } from './db/postgresAdapter';
+import { MySQLAdapter } from './db/mysqlAdapter';
+import { MSSQLAdapter } from './db/mssqlAdapter';
+
+export type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql';
 
 export interface DatabaseConfig {
-  engine: 'sqlite' | 'postgresql';
-  /** SQLite file path (or ':memory:' for tests). Ignored when engine is 'postgresql'. */
+  engine: DbEngine;
+  /** SQLite file path (or ':memory:' for tests). Only used when engine is 'sqlite'. */
   path?: string;
-  /** PostgreSQL connection URL. Required when engine is 'postgresql'. */
+  /** Connection URL. Required for all non-SQLite engines. */
   url?: string;
 }
 
@@ -20,13 +24,27 @@ class DatabaseManager {
       return this.adapter;
     }
 
-    if (config.engine === 'postgresql') {
-      if (!config.url) {
-        throw new Error('DATABASE_URL is required when DB_ENGINE=postgresql');
-      }
-      this.adapter = new PostgresAdapter(config.url);
-    } else {
-      this.adapter = new SQLiteAdapter(config.path || './db.sqlite3');
+    switch (config.engine) {
+      case 'postgresql':
+        if (!config.url) throw new Error('DATABASE_URL is required when DB_ENGINE=postgresql');
+        this.adapter = new PostgresAdapter(config.url);
+        break;
+
+      case 'mysql':
+      case 'mariadb':
+        if (!config.url) throw new Error('DATABASE_URL is required when DB_ENGINE=mysql/mariadb');
+        this.adapter = new MySQLAdapter(config.url);
+        break;
+
+      case 'mssql':
+        if (!config.url) throw new Error('DATABASE_URL is required when DB_ENGINE=mssql');
+        this.adapter = new MSSQLAdapter(config.url);
+        break;
+
+      case 'sqlite':
+      default:
+        this.adapter = new SQLiteAdapter(config.path || './db.sqlite3');
+        break;
     }
 
     return this.adapter;
@@ -34,7 +52,6 @@ class DatabaseManager {
 
   static getAdapter(): DbAdapter {
     if (!this.adapter) {
-      // Lazy default: SQLite in the current working directory
       this.adapter = new SQLiteAdapter('./db.sqlite3');
     }
     return this.adapter;

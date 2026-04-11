@@ -32,6 +32,7 @@ import {
 import authRoutes from './apps/auth/routes';
 import adminRoutes from './apps/admin/routes';
 import permissionsRoutes from './apps/admin/permissionsRoutes';
+import backupRoutes from './apps/admin/backupRoutes';
 
 const fastify = Fastify({
   logger: {
@@ -158,6 +159,7 @@ async function start() {
     await fastify.register(authRoutes);
     await fastify.register(adminRoutes);
     await fastify.register(permissionsRoutes);
+    await fastify.register(backupRoutes);
 
     // Health check
     fastify.get('/health', {

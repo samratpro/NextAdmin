@@ -12,7 +12,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DEBUG: z.string().optional(),
   SECRET_KEY: z.string().min(16, 'SECRET_KEY must be at least 16 characters').default(PLACEHOLDER_SECRET),
-  DB_ENGINE: z.enum(['sqlite', 'postgresql']).default('sqlite'),
+  DB_ENGINE: z.enum(['sqlite', 'postgresql', 'mysql', 'mariadb', 'mssql']).default('sqlite'),
   DB_PATH: z.string().default('./db.sqlite3'),
   DATABASE_URL: z.string().optional(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters').default(PLACEHOLDER_JWT),
@@ -50,8 +50,8 @@ if (env.NODE_ENV === 'production') {
   if (env.JWT_SECRET === PLACEHOLDER_JWT) {
     errors.push('JWT_SECRET must be changed from the default placeholder in production');
   }
-  if (env.DB_ENGINE === 'postgresql' && !env.DATABASE_URL) {
-    errors.push('DATABASE_URL is required when DB_ENGINE=postgresql');
+  if (env.DB_ENGINE !== 'sqlite' && !env.DATABASE_URL) {
+    errors.push(`DATABASE_URL is required when DB_ENGINE=${env.DB_ENGINE}`);
   }
   if (errors.length > 0) {
     for (const err of errors) console.error(`[FATAL] ${err}`);
@@ -84,7 +84,7 @@ export interface AppSettings {
   debug: boolean;
   secretKey: string;
   database: {
-    engine: 'sqlite' | 'postgresql';
+    engine: 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql';
     path: string;
     url?: string;
   };

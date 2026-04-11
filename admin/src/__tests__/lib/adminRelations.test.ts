@@ -40,6 +40,24 @@ describe('adminRelations', () => {
         expect(getRelationDisplayLabel(undefined, 'Project', 42)).toBe('Project #42');
     });
 
+    it('uses email for userId and name for appId when rendering related labels', () => {
+        expect(
+            getRelationDisplayLabel(
+                { id: 1, email: 'test@example.com', username: 'tester' },
+                'User',
+                'userId'
+            )
+        ).toBe('test@example.com');
+
+        expect(
+            getRelationDisplayLabel(
+                { id: 2, name: 'My App', slug: 'my-app' },
+                'App',
+                'appId'
+            )
+        ).toBe('My App');
+    });
+
     it('matches related options even when ids differ by string vs number', () => {
         const related = [{ id: 7, username: 'sam' }, { id: '8', username: 'alex' }];
 

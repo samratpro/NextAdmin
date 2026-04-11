@@ -37,11 +37,27 @@ export function resolveRelatedModel(
 export function getRelationDisplayLabel(
     option: RelationLabelRecord | null | undefined,
     relatedModel: string,
+    fieldNameOrFallbackId?: string | number | null,
     fallbackId?: string | number | null
 ): string {
-    const optionId = option?.id ?? fallbackId;
+    const fieldName = typeof fieldNameOrFallbackId === 'string' ? fieldNameOrFallbackId : undefined;
+    const optionId = option?.id ?? (typeof fieldNameOrFallbackId === 'string' ? fallbackId : fieldNameOrFallbackId);
 
     if (option) {
+        if (fieldName === 'userId') {
+            const value = option.email || option.username;
+            if (typeof value === 'string' && value.trim()) {
+                return value;
+            }
+        }
+
+        if (fieldName === 'appId') {
+            const value = option.name || option.slug;
+            if (typeof value === 'string' && value.trim()) {
+                return value;
+            }
+        }
+
         for (const labelField of RELATION_LABEL_FIELDS) {
             const value = option[labelField];
             if (typeof value === 'string' && value.trim()) {
