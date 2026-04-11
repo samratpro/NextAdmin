@@ -660,20 +660,20 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     const { code, error } = request.query as { code?: string; error?: string };
 
     if (error || !code) {
-      return reply.type('text/html').send(popupPage('error', `Google Drive authorization failed: ${error ?? 'no code'}`));
+      return reply.type('text/html; charset=utf-8').send(popupPageSafe('error', `Google Drive authorization failed: ${error ?? 'no code'}`));
     }
 
     const oauth2 = getOAuth2Client();
     if (!oauth2) {
-      return reply.type('text/html').send(popupPage('error', 'OAuth2 not configured on server.'));
+      return reply.type('text/html; charset=utf-8').send(popupPageSafe('error', 'OAuth2 not configured on server.'));
     }
 
     try {
       const { tokens } = await oauth2.getToken(code);
       saveTokens(tokens);
-      reply.type('text/html').send(popupPage('success', 'Google Drive connected successfully!'));
+      reply.type('text/html; charset=utf-8').send(popupPageSafe('success', 'Google Drive connected successfully!'));
     } catch (err: any) {
-      reply.type('text/html').send(popupPage('error', `Token exchange failed: ${err.message}`));
+      reply.type('text/html; charset=utf-8').send(popupPageSafe('error', `Token exchange failed: ${err.message}`));
     }
   });
 
@@ -710,6 +710,22 @@ function popupPage(status: 'success' | 'error', message: string): string {
   const color = status === 'success' ? '#16a34a' : '#dc2626';
   const icon  = status === 'success' ? '✓' : '✗';
   return `<!DOCTYPE html><html><head><title>Google Drive Auth</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}
+.box{text-align:center;padding:2rem;border-radius:12px;border:1px solid #e5e7eb;background:#fff;max-width:360px;}
+.icon{font-size:3rem;color:${color};} p{color:#374151;margin-top:.5rem;}</style></head>
+<body><div class="box"><div class="icon">${icon}</div><p>${message}</p>
+${status === 'success' ? '<p style="color:#6b7280;font-size:.85rem;margin-top:1rem">You can close this window.</p>' : ''}
+</div><script>
+${status === 'success' ? 'setTimeout(()=>window.close(),1500);' : ''}
+window.opener && window.opener.postMessage("${status}", "*");
+</script></body></html>`;
+}
+
+/** UTF-8-safe popup page with ASCII-only markup for the status icon. */
+function popupPageSafe(status: 'success' | 'error', message: string): string {
+  const color = status === 'success' ? '#16a34a' : '#dc2626';
+  const icon = status === 'success' ? '&#10003;' : '&#10005;';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Google Drive Auth</title>
 <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f9fafb;}
 .box{text-align:center;padding:2rem;border-radius:12px;border:1px solid #e5e7eb;background:#fff;max-width:360px;}
 .icon{font-size:3rem;color:${color};} p{color:#374151;margin-top:.5rem;}</style></head>

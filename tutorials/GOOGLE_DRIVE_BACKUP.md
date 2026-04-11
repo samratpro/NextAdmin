@@ -43,13 +43,16 @@ This guide walks you through connecting Google Drive to the Admin Backup panel s
 4. Now go back to **Credentials → + Create Credentials → OAuth client ID**
 5. Application type: **Web application**
 6. Name: `Nango Admin`
-7. Under **Authorized redirect URIs**, click **+ Add URI** and enter:
+7. Under **Authorized redirect URIs**, click **+ Add URI** and enter the exact callback URL your API will use:
    ```
    http://localhost:8000/api/admin/backup/drive/callback
    ```
+   > If your API is on a different port or domain, set `GOOGLE_REDIRECT_URI` in `api/.env` to the same value and register that exact URI in Google Cloud Console.
+   >
    > For production, replace with your actual API domain, e.g.:
    > `https://api.yourdomain.com/api/admin/backup/drive/callback`
 8. Click **Create**
+9. Audience -> Publishing status -> Publish App
 9. In the popup, click **Download JSON** (the download icon ⬇) — this saves a file like `client_secret_xxxx.json`
 10. Close the popup
 
