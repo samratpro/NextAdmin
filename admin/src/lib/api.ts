@@ -175,6 +175,56 @@ class ApiClient {
     const response = await this.client.post(`/api/admin/backup/files/${encodeURIComponent(filename)}/send-to-drive`);
     return response.data;
   }
+
+  async getBackupSchedule(): Promise<{
+    enabled: boolean;
+    frequency: 'daily' | 'weekly' | 'monthly';
+    hour: number;
+    minute: number;
+    keepCount: number;
+    uploadToDrive: boolean;
+    bandwidthLimitMbps: number;
+  }> {
+    const response = await this.client.get('/api/admin/backup/schedule');
+    return response.data;
+  }
+
+  async saveBackupSchedule(config: {
+    enabled: boolean;
+    frequency: 'daily' | 'weekly' | 'monthly';
+    hour: number;
+    minute: number;
+    keepCount: number;
+    uploadToDrive: boolean;
+    bandwidthLimitMbps: number;
+  }): Promise<{ success: boolean; config: typeof config }> {
+    const response = await this.client.post('/api/admin/backup/schedule', config);
+    return response.data;
+  }
+
+  async runBackupNow(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/api/admin/backup/schedule/run-now');
+    return response.data;
+  }
+
+  async getBackupLog(): Promise<{
+    running: boolean;
+    log: Array<{
+      at: string;
+      trigger: 'schedule' | 'manual';
+      status: 'success' | 'error';
+      file?: string;
+      sizeBytes?: number;
+      durationMs: number;
+      uploadedDrive: boolean;
+      deletedLocal: number;
+      deletedDrive: number;
+      error?: string;
+    }>;
+  }> {
+    const response = await this.client.get('/api/admin/backup/log');
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();

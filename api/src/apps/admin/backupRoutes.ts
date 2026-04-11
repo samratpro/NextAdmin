@@ -4,7 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { Transform, TransformCallback } from 'stream';
 import { google } from 'googleapis';
+import cron from 'node-cron';
 import { requireSuperuser } from '../../middleware/auth';
 import DatabaseManager from '../../core/database';
 import settings from '../../config/settings';
@@ -13,6 +15,104 @@ const execAsync = promisify(exec);
 
 // Backups stored under <api-cwd>/backups/
 const BACKUP_DIR = path.resolve(process.cwd(), 'backups');
+
+// ─── Backup Schedule config ───────────────────────────────────────────────────
+
+const SCHEDULE_FILE = path.resolve(process.cwd(), 'backup_schedule.json');
+
+interface BackupScheduleConfig {
+  enabled: boolean;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  hour: number;               // 0–23
+  minute: number;             // 0–59
+  keepCount: number;          // how many backups to keep locally and on Drive
+  uploadToDrive: boolean;
+  bandwidthLimitMbps: number; // max upload speed (1–50 Mbps)
+}
+
+const DEFAULT_SCHEDULE: BackupScheduleConfig = {
+  enabled: false,
+  frequency: 'daily',
+  hour: 3,
+  minute: 0,
+  keepCount: 2,
+  uploadToDrive: false,
+  bandwidthLimitMbps: 50,
+};
+
+function loadScheduleConfig(): BackupScheduleConfig {
+  try {
+    if (fs.existsSync(SCHEDULE_FILE)) {
+      return { ...DEFAULT_SCHEDULE, ...JSON.parse(fs.readFileSync(SCHEDULE_FILE, 'utf8')) };
+    }
+  } catch {}
+  return { ...DEFAULT_SCHEDULE };
+}
+
+function saveScheduleConfig(config: BackupScheduleConfig) {
+  try {
+    fs.writeFileSync(SCHEDULE_FILE, JSON.stringify(config, null, 2));
+  } catch (err: any) {
+    throw new Error(`Failed to save schedule config: ${err.message}`);
+  }
+}
+
+// ─── Backup log ───────────────────────────────────────────────────────────────
+
+const LOG_FILE    = path.resolve(process.cwd(), 'backup_log.json');
+const LOG_MAX     = 20; // keep last 20 entries
+
+interface BackupLogEntry {
+  at:             string;   // ISO timestamp
+  trigger:        'schedule' | 'manual';
+  status:         'success' | 'error';
+  file?:          string;
+  sizeBytes?:     number;
+  durationMs:     number;
+  uploadedDrive:  boolean;
+  deletedLocal:   number;
+  deletedDrive:   number;
+  error?:         string;
+}
+
+let backupRunning = false;
+
+function readLog(): BackupLogEntry[] {
+  try {
+    if (fs.existsSync(LOG_FILE)) return JSON.parse(fs.readFileSync(LOG_FILE, 'utf8'));
+  } catch {}
+  return [];
+}
+
+function appendLog(entry: BackupLogEntry) {
+  const entries = [entry, ...readLog()].slice(0, LOG_MAX);
+  fs.writeFileSync(LOG_FILE, JSON.stringify(entries, null, 2));
+}
+
+// ─── Throttle stream (token bucket) ──────────────────────────────────────────
+
+/** Creates a Transform stream that limits throughput to `bytesPerSecond`. */
+function createThrottle(bytesPerSecond: number): Transform {
+  let bucket = bytesPerSecond;
+  let lastTime = Date.now();
+  return new Transform({
+    transform(chunk: Buffer, _enc: string, cb: TransformCallback) {
+      const now = Date.now();
+      bucket = Math.min(bytesPerSecond, bucket + ((now - lastTime) / 1000) * bytesPerSecond);
+      lastTime = now;
+      const delay = chunk.length > bucket
+        ? Math.ceil(((chunk.length - bucket) / bytesPerSecond) * 1000)
+        : 0;
+      bucket = Math.max(0, bucket - chunk.length);
+      if (delay > 0) {
+        setTimeout(() => { this.push(chunk); cb(); }, delay);
+      } else {
+        this.push(chunk);
+        cb();
+      }
+    },
+  });
+}
 
 // ─── Google Drive helpers ─────────────────────────────────────────────────────
 
@@ -137,19 +237,216 @@ async function getOrCreateDriveFolder(drive: ReturnType<typeof google.drive>): P
   return created.data.id!;
 }
 
-async function uploadFileToDrive(filename: string, filePath: string): Promise<{ id: string; webViewLink: string }> {
+async function uploadFileToDrive(
+  filename: string,
+  filePath: string,
+  bandwidthLimitMbps = 0,
+): Promise<{ id: string; webViewLink: string }> {
   const client = getDriveClient();
   if (!client) throw new Error('Google Drive is not connected. Click "Connect Google Drive" to authenticate.');
 
   const folderId = await getOrCreateDriveFolder(client.drive);
   const mimeType = path.extname(filename) === '.sql' ? 'text/plain' : 'application/octet-stream';
 
+  let body: NodeJS.ReadableStream = fs.createReadStream(filePath);
+  if (bandwidthLimitMbps > 0) {
+    const bps = Math.floor((bandwidthLimitMbps * 1024 * 1024) / 8);
+    body = body.pipe(createThrottle(bps));
+  }
+
   const res = await client.drive.files.create({
     requestBody: { name: filename, parents: [folderId] },
-    media: { mimeType, body: fs.createReadStream(filePath) },
+    media: { mimeType, body },
     fields: 'id,webViewLink',
   });
   return { id: res.data.id!, webViewLink: res.data.webViewLink! };
+}
+
+// ─── Drive old-backup cleanup ─────────────────────────────────────────────────
+
+async function cleanupDriveBackups(
+  drive: ReturnType<typeof google.drive>,
+  folderId: string,
+  keepCount: number,
+) {
+  try {
+    const list = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'files(id,name,createdTime)',
+      orderBy: 'createdTime desc',
+      spaces: 'drive',
+    });
+    const files = list.data.files ?? [];
+    for (const f of files.slice(keepCount)) {
+      if (f.id) {
+        try { await drive.files.delete({ fileId: f.id }); } catch {}
+      }
+    }
+  } catch {}
+}
+
+// ─── Local old-backup cleanup ─────────────────────────────────────────────────
+
+/** Returns all regular (non-safety, non-tmp) backup files sorted newest-first. */
+function listBackupFiles(): { name: string; mtime: number }[] {
+  if (!fs.existsSync(BACKUP_DIR)) return [];
+  return fs.readdirSync(BACKUP_DIR)
+    .filter(f =>
+      !f.startsWith('pre-restore_') &&
+      !f.startsWith('_') &&
+      (f.endsWith('.sqlite3') || f.endsWith('.dump') || f.endsWith('.sql') || f.endsWith('.bak'))
+    )
+    .map(f => ({ name: f, mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime);
+}
+
+function cleanupLocalBackups(keepCount: number): number {
+  const toDelete = listBackupFiles().slice(keepCount);
+  for (const f of toDelete) {
+    try { fs.unlinkSync(path.join(BACKUP_DIR, f.name)); } catch {}
+  }
+  return toDelete.length;
+}
+
+// ─── Scheduled backup runner ──────────────────────────────────────────────────
+
+async function runScheduledBackup(
+  config: BackupScheduleConfig,
+  trigger: 'schedule' | 'manual' = 'schedule',
+) {
+  if (backupRunning) {
+    console.log('[backup] Skipped — another backup is already running');
+    return;
+  }
+
+  const dbs = discoverDatabases();
+  if (dbs.length === 0) {
+    console.log('[backup] No database found — skipping');
+    return;
+  }
+  const db = dbs[0];
+  const startedAt = Date.now();
+  backupRunning = true;
+
+  console.log(`[backup] Starting ${trigger} backup (${db.engine})...`);
+
+  ensureBackupDir();
+  const { ext, label } = backupMeta(db.engine);
+  const backupName = `${formatTimestamp(new Date())}_${label}${ext}`;
+  const backupPath = path.join(BACKUP_DIR, backupName);
+
+  let deletedLocal = 0;
+  let deletedDrive = 0;
+  let uploadedDrive = false;
+
+  try {
+    await dispatchBackup(db, backupPath);
+    const sizeBytes = fs.statSync(backupPath).size;
+    const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
+    console.log(`[backup] Backup created: ${backupName} (${sizeMB} MB)`);
+
+    if (config.uploadToDrive) {
+      console.log(`[backup] Uploading to Google Drive (limit: ${config.bandwidthLimitMbps} Mbps)...`);
+      try {
+        await uploadFileToDrive(backupName, backupPath, config.bandwidthLimitMbps);
+        uploadedDrive = true;
+        console.log(`[backup] Uploaded to Drive folder: ${DRIVE_FOLDER_NAME}/`);
+
+        const driveClient = getDriveClient();
+        if (driveClient) {
+          const folderId = await getOrCreateDriveFolder(driveClient.drive);
+          // list once, slice — no second API call needed
+          const { data: { files: driveFiles = [] } } = await driveClient.drive.files.list({
+            q: `'${folderId}' in parents and trashed=false`,
+            fields: 'files(id)',
+            orderBy: 'createdTime desc',
+            spaces: 'drive',
+          });
+          const toDelete = driveFiles.slice(config.keepCount);
+          deletedDrive = toDelete.length;
+          for (const f of toDelete) {
+            if (f.id) try { await driveClient.drive.files.delete({ fileId: f.id }); } catch {}
+          }
+          if (deletedDrive > 0) console.log(`[backup] Removed ${deletedDrive} old Drive backup(s), keeping ${config.keepCount}`);
+        }
+      } catch (driveErr: any) {
+        console.error('[backup] Drive upload failed:', driveErr?.message ?? driveErr);
+      }
+    }
+
+    // cleanup local — cleanupLocalBackups now returns the deleted count
+    deletedLocal = cleanupLocalBackups(config.keepCount);
+    if (deletedLocal > 0) console.log(`[backup] Removed ${deletedLocal} old local backup(s), keeping ${config.keepCount}`);
+
+    const durationMs = Date.now() - startedAt;
+    console.log(`[backup] Done in ${(durationMs / 1000).toFixed(1)}s`);
+
+    appendLog({ at: new Date().toISOString(), trigger, status: 'success', file: backupName, sizeBytes, durationMs, uploadedDrive, deletedLocal, deletedDrive });
+  } catch (err: any) {
+    const durationMs = Date.now() - startedAt;
+    const msg = err?.message ?? String(err);
+    console.error(`[backup] Failed after ${(durationMs / 1000).toFixed(1)}s:`, msg);
+    appendLog({ at: new Date().toISOString(), trigger, status: 'error', durationMs, uploadedDrive, deletedLocal, deletedDrive, error: msg });
+  } finally {
+    backupRunning = false;
+  }
+}
+
+// ─── Scheduler management ─────────────────────────────────────────────────────
+
+let activeJob: cron.ScheduledTask | null = null;
+
+function buildCronExpression(config: BackupScheduleConfig): string {
+  const { minute, hour, frequency } = config;
+  switch (frequency) {
+    case 'daily':   return `${minute} ${hour} * * *`;
+    case 'weekly':  return `${minute} ${hour} * * 1`;  // every Monday
+    case 'monthly': return `${minute} ${hour} 1 * *`;  // 1st of every month
+    default:        return `${minute} ${hour} * * *`;
+  }
+}
+
+function applyScheduleConfig(config: BackupScheduleConfig) {
+  if (activeJob) {
+    activeJob.stop();
+    // node-cron adds every task to global.scheduledTasks and provides no remove() —
+    // manually delete so stopped tasks don't accumulate in memory.
+    const tasks: Map<string, any> = (global as any).scheduledTasks;
+    if (tasks && (activeJob as any).options?.name) {
+      tasks.delete((activeJob as any).options.name);
+    }
+    activeJob = null;
+  }
+
+  if (!config.enabled) {
+    console.log('[backup] Scheduler disabled');
+    return;
+  }
+
+  const expr = buildCronExpression(config);
+  if (!cron.validate(expr)) {
+    console.error('[backup] Invalid cron expression:', expr);
+    return;
+  }
+
+  activeJob = cron.schedule(expr, () => {
+    runScheduledBackup(config).catch(err =>
+      console.error('[backup] Scheduled backup error:', err)
+    );
+  });
+
+  console.log(`[backup] Scheduler active — ${describeScheduleLog(config)} (cron: ${expr})`);
+}
+
+function describeScheduleLog(config: BackupScheduleConfig): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const time = `${pad(config.hour)}:${pad(config.minute)}`;
+  switch (config.frequency) {
+    case 'daily':   return `every day at ${time}`;
+    case 'weekly':  return `every Monday at ${time}`;
+    case 'monthly': return `1st of every month at ${time}`;
+    default:        return time;
+  }
 }
 
 type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql';
@@ -294,8 +591,13 @@ async function createSqliteBackup(srcPath: string, destPath: string) {
 }
 
 async function createPostgresBackup(destPath: string) {
-  const url = settings.database.url!;
-  await execAsync(`pg_dump "${url}" -F c -f "${destPath}"`);
+  const { user, password, host, port, database } = parseDbUrl(settings.database.url!);
+  const portFlag = port ? `-p ${port}` : '';
+  // Use PGPASSWORD env var — keeps password out of the process list (ps aux)
+  await execAsync(
+    `pg_dump -h "${host}" ${portFlag} -U "${user}" -F c -f "${destPath}" "${database}"`,
+    { env: { ...process.env, PGPASSWORD: password }, timeout: 600_000 },
+  );
 }
 
 async function createMysqlBackup(destPath: string) {
@@ -303,7 +605,8 @@ async function createMysqlBackup(destPath: string) {
   const portFlag = port ? `-P ${port}` : '';
   // --single-transaction keeps a consistent snapshot without locking tables
   await execAsync(
-    `mysqldump --single-transaction --routines --triggers -h "${host}" ${portFlag} -u "${user}" -p"${password}" "${database}" > "${destPath}"`
+    `mysqldump --single-transaction --routines --triggers -h "${host}" ${portFlag} -u "${user}" -p"${password}" "${database}" > "${destPath}"`,
+    { timeout: 600_000 },
   );
 }
 
@@ -316,7 +619,8 @@ async function createMssqlBackup(destPath: string) {
     ? path.join(process.env.MSSQL_BACKUP_DIR, path.basename(destPath))
     : destPath;
   await execAsync(
-    `sqlcmd -S "${server}" -U "${user}" -P "${password}" -Q "BACKUP DATABASE [${database}] TO DISK = N'${mssqlPath}' WITH FORMAT, INIT, COMPRESSION"`
+    `sqlcmd -S "${server}" -U "${user}" -P "${password}" -Q "BACKUP DATABASE [${database}] TO DISK = N'${mssqlPath}' WITH FORMAT, INIT, COMPRESSION"`,
+    { timeout: 600_000 },
   );
 }
 
@@ -352,10 +656,18 @@ async function restoreSqliteBackup(srcPath: string, targetPath: string): Promise
 }
 
 async function restorePostgresBackup(srcPath: string): Promise<string> {
-  const url = settings.database.url!;
+  const { user, password, host, port, database } = parseDbUrl(settings.database.url!);
+  const portFlag = port ? `-p ${port}` : '';
+  const env = { ...process.env, PGPASSWORD: password };
   const safetyName = `pre-restore_${formatTimestamp(new Date())}_postgres.dump`;
-  await execAsync(`pg_dump "${url}" -F c -f "${path.join(BACKUP_DIR, safetyName)}"`);
-  await execAsync(`pg_restore --clean -1 -d "${url}" "${srcPath}"`);
+  await execAsync(
+    `pg_dump -h "${host}" ${portFlag} -U "${user}" -F c -f "${path.join(BACKUP_DIR, safetyName)}" "${database}"`,
+    { env, timeout: 600_000 },
+  );
+  await execAsync(
+    `pg_restore --clean -1 -h "${host}" ${portFlag} -U "${user}" -d "${database}" "${srcPath}"`,
+    { env, timeout: 600_000 },
+  );
   return safetyName;
 }
 
@@ -703,6 +1015,58 @@ export default async function backupRoutes(fastify: FastifyInstance) {
       reply.code(500).send({ error: err.message ?? 'Failed to upload to Google Drive' });
     }
   });
+
+  // 13. Get backup schedule config
+  fastify.get('/api/admin/backup/schedule', {
+    preHandler: requireSuperuser,
+    schema: { tags: ['Admin'], description: 'Get backup schedule configuration', security: [{ bearerAuth: [] }] },
+  }, async (_req, reply) => {
+    reply.send(loadScheduleConfig());
+  });
+
+  // 14. Save backup schedule config
+  fastify.post('/api/admin/backup/schedule', {
+    preHandler: requireSuperuser,
+    schema: { tags: ['Admin'], description: 'Save and apply backup schedule configuration', security: [{ bearerAuth: [] }] },
+  }, async (request, reply) => {
+    const body = request.body as Partial<BackupScheduleConfig>;
+    const current = loadScheduleConfig();
+    const updated: BackupScheduleConfig = {
+      ...current,
+      ...body,
+      hour:               Math.max(0,  Math.min(23, Number(body.hour               ?? current.hour))),
+      minute:             Math.max(0,  Math.min(59, Number(body.minute             ?? current.minute))),
+      keepCount:          Math.max(1,  Math.min(30, Number(body.keepCount          ?? current.keepCount))),
+      bandwidthLimitMbps: Math.max(1,  Math.min(50, Number(body.bandwidthLimitMbps ?? current.bandwidthLimitMbps))),
+    };
+    saveScheduleConfig(updated);
+    applyScheduleConfig(updated);
+    reply.send({ success: true, config: updated });
+  });
+
+  // 15. Manually trigger a scheduled backup
+  fastify.post('/api/admin/backup/schedule/run-now', {
+    preHandler: requireSuperuser,
+    schema: { tags: ['Admin'], description: 'Manually trigger a scheduled backup run', security: [{ bearerAuth: [] }] },
+  }, async (_req, reply) => {
+    if (backupRunning) return reply.code(409).send({ error: 'A backup is already running' });
+    const config = loadScheduleConfig();
+    runScheduledBackup(config, 'manual').catch(err =>
+      console.error('[backup] Manual run error:', err)
+    );
+    reply.send({ success: true, message: 'Backup started in background' });
+  });
+
+  // 16. Backup log
+  fastify.get('/api/admin/backup/log', {
+    preHandler: requireSuperuser,
+    schema: { tags: ['Admin'], description: 'Get recent backup log entries', security: [{ bearerAuth: [] }] },
+  }, async (_req, reply) => {
+    reply.send({ log: readLog(), running: backupRunning });
+  });
+
+  // Initialize scheduler from saved config on startup
+  applyScheduleConfig(loadScheduleConfig());
 }
 
 /** Minimal HTML page shown inside the OAuth2 popup after auth completes */

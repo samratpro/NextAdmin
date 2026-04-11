@@ -1,0 +1,13 @@
+[
+  {
+    "at": "2026-04-11T16:58:34.683Z",
+    "trigger": "manual",
+    "status": "success",
+    "file": "2026-04-11_22-58-29_sqlite.sqlite3",
+    "sizeBytes": 73728,
+    "durationMs": 5417,
+    "uploadedDrive": true,
+    "deletedLocal": 1,
+    "deletedDrive": 0
+  }
+]

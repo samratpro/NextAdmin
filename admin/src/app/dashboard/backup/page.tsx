@@ -24,7 +24,17 @@ interface BackupFile {
   modifiedAt: string;
 }
 
-type Tab = 'databases' | 'backups' | 'restore';
+type Tab = 'databases' | 'backups' | 'restore' | 'schedule' | 'running';
+
+interface ScheduleConfig {
+  enabled: boolean;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  hour: number;
+  minute: number;
+  keepCount: number;
+  uploadToDrive: boolean;
+  bandwidthLimitMbps: number;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -484,54 +494,60 @@ function RestoreTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
         <label className="block text-sm font-medium text-gray-700 mb-1">Target Database</label>
         <select
           value={selectedDb}
-          onChange={e => setSelectedDb(e.target.value)}
+          onChange={e => { setSelectedDb(e.target.value); setFile(null); }}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           {dbs.map(db => (
-            <option key={db.path} value={db.path}>{db.name} — {db.path}</option>
+            <option key={db.path} value={db.path}>{db.name}</option>
           ))}
         </select>
       </div>
 
       {/* File drop zone */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          {acceptLabel(dbs.find(d => d.path === selectedDb)?.engine)}
-        </label>
-        <div
-          onDragOver={e => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-          className={`flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-lg cursor-pointer transition-colors
-            ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-gray-100'}`}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept={acceptExt(dbs.find(d => d.path === selectedDb)?.engine)}
-            className="hidden"
-            onChange={e => setFile(e.target.files?.[0] ?? null)}
-          />
-          {file ? (
-            <div className="text-center">
-              <p className="font-medium text-gray-900">{file.name}</p>
-              <p className="text-xs text-gray-500">{formatBytes(file.size)}</p>
-              <button
-                onClick={e => { e.stopPropagation(); setFile(null); }}
-                className="mt-2 text-xs text-red-500 hover:underline"
-              >
-                Remove
-              </button>
+      {(() => {
+        const engine = dbs.find(d => d.path === selectedDb)?.engine;
+        const ext = acceptExt(engine);
+        const extDisplay = ext.split(',').join(' / ');
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {acceptLabel(engine)}
+            </label>
+            <div
+              onDragOver={e => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => inputRef.current?.click()}
+              className={`flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-lg cursor-pointer transition-colors
+                ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-gray-100'}`}
+            >
+              <input
+                ref={inputRef}
+                type="file"
+                className="hidden"
+                onChange={e => setFile(e.target.files?.[0] ?? null)}
+              />
+              {file ? (
+                <div className="text-center">
+                  <p className="font-medium text-gray-900">{file.name}</p>
+                  <p className="text-xs text-gray-500">{formatBytes(file.size)}</p>
+                  <button
+                    onClick={e => { e.stopPropagation(); setFile(null); }}
+                    className="mt-2 text-xs text-red-500 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600">Drag & drop a backup file here, or click to browse</p>
+                  <p className="text-xs text-gray-400">Accepts {extDisplay} files</p>
+                </>
+              )}
             </div>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600">Drag & drop a backup file here, or click to browse</p>
-              <p className="text-xs text-gray-400">Accepts .sqlite3 files</p>
-            </>
-          )}
-        </div>
-      </div>
+          </div>
+        );
+      })()}
 
       <button
         onClick={handleRestore}
@@ -551,6 +567,400 @@ function RestoreTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
   );
 }
 
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+interface LogEntry {
+  at: string;
+  trigger: 'schedule' | 'manual';
+  status: 'success' | 'error';
+  file?: string;
+  sizeBytes?: number;
+  durationMs: number;
+  uploadedDrive: boolean;
+  deletedLocal: number;
+  deletedDrive: number;
+  error?: string;
+}
+
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+
+function describeSchedule(cfg: ScheduleConfig): string {
+  const time = `${pad2(cfg.hour)}:${pad2(cfg.minute)}`;
+  switch (cfg.frequency) {
+    case 'daily':   return `Every day at ${time}`;
+    case 'weekly':  return `Every Monday at ${time}`;
+    case 'monthly': return `1st of every month at ${time}`;
+    default:        return time;
+  }
+}
+
+function Toggle({ on, onChange, disabled }: { on: boolean; onChange: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-indigo-600' : 'bg-gray-300'}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+    </button>
+  );
+}
+
+// ─── Schedule Tab ─────────────────────────────────────────────────────────────
+
+function ScheduleTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: string) => void }) {
+  const [cfg, setCfg] = useState<ScheduleConfig>({
+    enabled: false, frequency: 'daily', hour: 3, minute: 0,
+    keepCount: 2, uploadToDrive: false, bandwidthLimitMbps: 50,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [driveConnected, setDriveConnected] = useState(false);
+
+  useEffect(() => {
+    Promise.all([api.getBackupSchedule(), api.getDriveStatus()])
+      .then(([schedule, drive]) => { setCfg(schedule); setDriveConnected(drive.configured); })
+      .catch(() => onNotify('error', 'Failed to load schedule'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Toggle enable/disable — saves immediately, no need to click Save
+  const handleToggle = async () => {
+    const next = { ...cfg, enabled: !cfg.enabled };
+    setCfg(next);
+    setToggling(true);
+    try {
+      const res = await api.saveBackupSchedule(next);
+      setCfg(res.config);
+      onNotify('success', res.config.enabled ? `Auto backup enabled — ${describeSchedule(res.config)}` : 'Auto backup disabled');
+    } catch (e: any) {
+      setCfg(cfg); // revert on failure
+      onNotify('error', e?.response?.data?.error || 'Failed to update');
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await api.saveBackupSchedule(cfg);
+      setCfg(res.config);
+      onNotify('success', res.config.enabled ? `Saved — ${describeSchedule(res.config)}` : 'Schedule saved');
+    } catch (e: any) {
+      onNotify('error', e?.response?.data?.error || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <p className="text-gray-500 py-8 text-center">Loading...</p>;
+
+  const dim = !cfg.enabled;
+
+  return (
+    <div className="max-w-xl space-y-4">
+
+      {/* Header card — enable toggle + summary */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 flex items-center justify-between gap-4">
+        <div>
+          <p className="font-semibold text-gray-900">Auto Backup</p>
+          <p className={`text-sm mt-0.5 ${cfg.enabled ? 'text-indigo-600 font-medium' : 'text-gray-400'}`}>
+            {toggling
+              ? (cfg.enabled ? 'Enabling...' : 'Disabling...')
+              : cfg.enabled ? describeSchedule(cfg) : 'Disabled — configure below and enable'}
+          </p>
+        </div>
+        {toggling ? (
+          <span className="w-11 flex justify-center">
+            <span className="animate-spin w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full inline-block" />
+          </span>
+        ) : (
+          <Toggle on={cfg.enabled} onChange={handleToggle} />
+        )}
+      </div>
+
+      {/* Settings — dimmed when disabled */}
+      <div className={`space-y-4 transition-opacity ${dim ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+
+        {/* Frequency + Time on one row */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Schedule</p>
+
+          {/* Frequency pills */}
+          <div className="flex gap-2">
+            {(['daily', 'weekly', 'monthly'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setCfg(p => ({ ...p, frequency: f }))}
+                className={`flex-1 py-2 text-sm rounded-lg border font-medium transition-colors capitalize
+                  ${cfg.frequency === f
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'}`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400">
+            {cfg.frequency === 'weekly' ? 'Every Monday' : cfg.frequency === 'monthly' ? '1st of each month' : 'Every day'}
+          </p>
+
+          {/* Time selects */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">Hour</label>
+              <select
+                value={cfg.hour}
+                onChange={e => setCfg(p => ({ ...p, hour: Number(e.target.value) }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{pad2(i)}:00</option>
+                ))}
+              </select>
+            </div>
+            <span className="text-gray-300 text-lg font-light mt-5">:</span>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">Minute</label>
+              <select
+                value={cfg.minute}
+                onChange={e => setCfg(p => ({ ...p, minute: Number(e.target.value) }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => (
+                  <option key={m} value={m}>{pad2(m)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-5 flex-1 text-sm text-gray-500 whitespace-nowrap">
+              → <span className="font-medium text-gray-700">{pad2(cfg.hour)}:{pad2(cfg.minute)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Keep count */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Retention</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Keep last backups</p>
+              <p className="text-xs text-gray-400 mt-0.5">Older backups are deleted automatically — local &amp; Drive</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCfg(p => ({ ...p, keepCount: Math.max(1, p.keepCount - 1) }))}
+                className="w-8 h-8 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 text-lg leading-none"
+              >−</button>
+              <span className="w-8 text-center font-bold text-gray-900 text-lg">{cfg.keepCount}</span>
+              <button
+                onClick={() => setCfg(p => ({ ...p, keepCount: Math.min(30, p.keepCount + 1) }))}
+                className="w-8 h-8 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 text-lg leading-none"
+              >+</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Google Drive */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Google Drive</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Upload after backup</p>
+              {!driveConnected
+                ? <p className="text-xs text-amber-500 mt-0.5">Drive not connected — go to Backup Files tab</p>
+                : <p className="text-xs text-green-600 mt-0.5">Drive connected</p>
+              }
+            </div>
+            <Toggle
+              on={cfg.uploadToDrive && driveConnected}
+              onChange={() => setCfg(p => ({ ...p, uploadToDrive: !p.uploadToDrive }))}
+              disabled={!driveConnected}
+            />
+          </div>
+
+          {cfg.uploadToDrive && driveConnected && (
+            <div className="pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-500">Upload speed limit</label>
+                <span className="text-xs font-semibold text-indigo-600">{cfg.bandwidthLimitMbps} Mbps</span>
+              </div>
+              <input
+                type="range" min={1} max={50} value={cfg.bandwidthLimitMbps}
+                onChange={e => setCfg(p => ({ ...p, bandwidthLimitMbps: Number(e.target.value) }))}
+                className="w-full accent-indigo-600"
+              />
+              <div className="flex justify-between text-xs text-gray-300 mt-0.5">
+                <span>1 Mbps</span><span>50 Mbps max</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+      </div>{/* end dim wrapper */}
+
+      {/* Save */}
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full py-3 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+      >
+        {saving ? 'Saving...' : 'Save Schedule'}
+      </button>
+
+    </div>
+  );
+}
+
+// ─── Running Tab ──────────────────────────────────────────────────────────────
+
+function RunningTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: string) => void }) {
+  const [backupRunning, setBackupRunning] = useState(false);
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [triggering, setTriggering] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refresh = () =>
+    api.getBackupLog().then(res => {
+      setLog(res.log);
+      setBackupRunning(res.running);
+      return res.running;
+    }).catch(() => false);
+
+  const startPolling = () => {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      const still = await refresh();
+      if (!still && pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    }, 3000);
+  };
+
+  useEffect(() => {
+    refresh().then(running => { if (running) startPolling(); }).finally(() => setLoading(false));
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
+
+  const handleRunNow = async () => {
+    setTriggering(true);
+    try {
+      await api.runBackupNow();
+      setBackupRunning(true);
+      startPolling();
+      onNotify('success', 'Backup started');
+    } catch (e: any) {
+      onNotify('error', e?.response?.data?.error || 'Failed to start backup');
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  if (loading) return <p className="text-gray-500 py-8 text-center">Loading...</p>;
+
+  const lastRun = log[0];
+
+  return (
+    <div className="max-w-xl space-y-4">
+
+      {/* Status card */}
+      <div className={`rounded-xl border p-6 flex items-center justify-between gap-4 transition-colors
+        ${backupRunning ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200'}`}>
+        <div className="flex items-center gap-4">
+          {backupRunning ? (
+            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+              <span className="animate-spin inline-block w-6 h-6 border-[3px] border-indigo-500 border-t-transparent rounded-full" />
+            </div>
+          ) : (
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0
+              ${lastRun?.status === 'error' ? 'bg-red-100' : 'bg-green-100'}`}>
+              <span className={`text-2xl ${lastRun?.status === 'error' ? 'text-red-500' : 'text-green-500'}`}>
+                {lastRun ? (lastRun.status === 'success' ? '✓' : '✗') : '○'}
+              </span>
+            </div>
+          )}
+          <div>
+            <p className={`font-semibold text-lg ${backupRunning ? 'text-indigo-700' : 'text-gray-900'}`}>
+              {backupRunning ? 'Backup running...' : lastRun ? `Last run ${lastRun.status}` : 'No backups yet'}
+            </p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {backupRunning
+                ? 'This page auto-refreshes every 3 seconds'
+                : lastRun
+                  ? `${new Date(lastRun.at).toLocaleString()} · ${(lastRun.durationMs / 1000).toFixed(1)}s`
+                  : 'Click Run Now to take a backup manually'}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleRunNow}
+          disabled={triggering || backupRunning}
+          className="flex-shrink-0 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+        >
+          {triggering ? 'Starting...' : backupRunning ? 'Running...' : 'Run Now'}
+        </button>
+      </div>
+
+      {/* Log */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <p className="text-sm font-semibold text-gray-700">Recent Runs</p>
+          <button onClick={refresh} className="text-xs text-indigo-600 hover:underline">Refresh</button>
+        </div>
+
+        {log.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-10">No backup history yet</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {log.map((entry, i) => (
+              <li key={i} className="px-5 py-3 flex items-start gap-3">
+                {/* Status dot */}
+                <div className={`mt-0.5 w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold
+                  ${entry.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                  {entry.status === 'success' ? '✓' : '✗'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-gray-900">
+                      {new Date(entry.at).toLocaleString()}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium
+                      ${entry.trigger === 'manual' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                      {entry.trigger}
+                    </span>
+                    <span className="text-xs text-gray-400">{(entry.durationMs / 1000).toFixed(1)}s</span>
+                  </div>
+                  {entry.status === 'success' && (
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                      {entry.file && <span className="text-xs font-mono text-gray-500 truncate max-w-xs">{entry.file}</span>}
+                      {entry.sizeBytes != null && (
+                        <span className="text-xs text-gray-400">{(entry.sizeBytes / (1024 * 1024)).toFixed(2)} MB</span>
+                      )}
+                      {entry.uploadedDrive && (
+                        <span className="text-xs text-indigo-500 font-medium">☁ Drive</span>
+                      )}
+                      {entry.deletedLocal > 0 && (
+                        <span className="text-xs text-orange-500">−{entry.deletedLocal} local</span>
+                      )}
+                      {entry.deletedDrive > 0 && (
+                        <span className="text-xs text-orange-500">−{entry.deletedDrive} Drive</span>
+                      )}
+                    </div>
+                  )}
+                  {entry.error && (
+                    <p className="text-xs text-red-500 mt-1">{entry.error}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function BackupPage() {
@@ -566,8 +976,10 @@ export default function BackupPage() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'databases', label: 'Databases' },
-    { id: 'backups', label: 'Backup Files' },
-    { id: 'restore', label: 'Restore' },
+    { id: 'backups',   label: 'Backup Files' },
+    { id: 'restore',   label: 'Restore' },
+    { id: 'schedule',  label: 'Schedule' },
+    { id: 'running',   label: 'Running' },
   ];
 
   return (
@@ -635,8 +1047,10 @@ export default function BackupPage() {
           </div>
 
           {tab === 'databases' && <DatabasesTab onNotify={notify} />}
-          {tab === 'backups' && <BackupsTab onNotify={notify} />}
-          {tab === 'restore' && <RestoreTab onNotify={notify} />}
+          {tab === 'backups'   && <BackupsTab onNotify={notify} />}
+          {tab === 'restore'   && <RestoreTab onNotify={notify} />}
+          {tab === 'schedule'  && <ScheduleTab onNotify={notify} />}
+          {tab === 'running'   && <RunningTab onNotify={notify} />}
         </main>
       </div>
     </ProtectedRoute>
