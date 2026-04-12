@@ -142,6 +142,21 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 >
                     📊 Dashboard
                 </button>
+                {user?.isSuperuser === true && (
+                    <button
+                        onClick={() => {
+                            router.push('/dashboard');
+                            // Small delay to allow navigation to complete if not already on dashboard
+                            setTimeout(() => {
+                                const element = document.getElementById('health-check-section');
+                                element?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                        }}
+                        className="w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 rounded transition-colors"
+                    >
+                        🏥 Health Check
+                    </button>
+                )}
 
             </div>
         </div>

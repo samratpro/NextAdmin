@@ -144,10 +144,16 @@ export default function ModelsPage() {
 
                             {!loading && models.length === 0 && (
                                 <div className="text-center py-12 bg-white rounded-lg shadow">
-                                    <p className="text-gray-500">No models registered yet.</p>
-                                    <p className="text-sm text-gray-400 mt-2">
-                                        Create a model with <code className="bg-gray-100 px-2 py-1 rounded">npm run dev startapp myapp</code>
+                                    <p className="text-gray-600 font-medium">
+                                        {user?.isSuperuser 
+                                            ? "No models registered yet." 
+                                            : "No models have been permitted for your account."}
                                     </p>
+                                    {user?.isSuperuser === true && (
+                                        <p className="text-sm text-gray-400 mt-2">
+                                            Create a model with <code className="bg-gray-100 px-2 py-1 rounded">npm run dev startapp myapp</code>
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>

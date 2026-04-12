@@ -33,6 +33,8 @@ import authRoutes from './apps/auth/routes';
 import adminRoutes from './apps/admin/routes';
 import permissionsRoutes from './apps/admin/permissionsRoutes';
 import backupRoutes from './apps/admin/backupRoutes';
+import blogRoutes from './apps/blog/routes';
+import { Category, BlogPost } from './apps/blog/models';
 
 const fastify = Fastify({
   logger: {
@@ -58,7 +60,7 @@ async function initializeDatabase() {
     RefreshToken
   ];
 
-  for (const model of coreModels) {
+  for (const model of [...coreModels, Category, BlogPost]) {
     await model.createTable();
   }
 
@@ -160,6 +162,7 @@ async function start() {
     await fastify.register(adminRoutes);
     await fastify.register(permissionsRoutes);
     await fastify.register(backupRoutes);
+    await fastify.register(blogRoutes);
 
     // Health check
     fastify.get('/health', {

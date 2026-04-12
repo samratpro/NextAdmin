@@ -27,7 +27,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (user?.isSuperuser) {
+    if (user?.isSuperuser === true) {
       const fetchUserCount = async () => {
         try {
           const response = await api.get('/api/admin/users');
@@ -282,35 +282,36 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Welcome Message */}
-                <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Welcome to your Django-like Admin Panel!
-                    </h3>
-                    <div className="mt-2 max-w-xl text-sm text-gray-500">
-                      <p>
-                        This is a fully-featured admin panel built with Next.js and TypeScript.
-                        You can manage your application, view statistics, and perform administrative tasks.
-                      </p>
-                    </div>
-                    {user?.isSuperuser ? (
-                      <div className="mt-5">
-                        <a
-                          href="http://localhost:8000/docs"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
-                          View API Documentation
-                        </a>
+                {/* Welcome Message - Only for Superusers */}
+                {user?.isSuperuser ? (
+                  <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
+                    <div className="px-4 py-5 sm:p-6">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">
+                        Welcome to your Django-like Admin Panel!
+                      </h3>
+                      <div className="mt-2 max-w-xl text-sm text-gray-500">
+                        <p>
+                          This is a fully-featured admin panel built with Next.js and TypeScript.
+                          You can manage your application, view statistics, and perform administrative tasks.
+                        </p>
                       </div>
-                    ) : null}
+                        <div className="mt-5">
+                          <a
+                            href="http://localhost:8000/docs"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          >
+                            View API Documentation
+                          </a>
+                        </div>
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
-                {/* Health Check */}
-                <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg mb-8">
+                {/* Health Check - Only for Superusers */}
+                {user?.isSuperuser ? (
+                <div id="health-check-section" className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg mb-8">
                   <div className="px-4 py-5 sm:p-6">
                     <h3 className="text-lg leading-6 font-medium text-gray-900">
                       System Health Check
@@ -372,6 +373,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
+                ) : null}
               </div>
             </div>
           </main>

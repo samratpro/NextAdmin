@@ -79,23 +79,23 @@ class ApiClient {
   }
 
   // Generic CRUD operations
-  async get(endpoint: string) {
-    const response = await this.client.get(endpoint);
+  async get(endpoint: string, config?: any) {
+    const response = await this.client.get(endpoint, config);
     return response.data;
   }
 
-  async post(endpoint: string, data: any) {
-    const response = await this.client.post(endpoint, data);
+  async post(endpoint: string, data: any, config?: any) {
+    const response = await this.client.post(endpoint, data, config);
     return response.data;
   }
 
-  async put(endpoint: string, data: any) {
-    const response = await this.client.put(endpoint, data);
+  async put(endpoint: string, data: any, config?: any) {
+    const response = await this.client.put(endpoint, data, config);
     return response.data;
   }
 
-  async delete(endpoint: string) {
-    const response = await this.client.delete(endpoint);
+  async delete(endpoint: string, config?: any) {
+    const response = await this.client.delete(endpoint, config);
     return response.data;
   }
 

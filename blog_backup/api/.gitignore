@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.db
+*.sqlite
+*.sqlite3
+.env
+.DS_Store
+logs/
+*.log
+.google_credentials.json
+.google_tokens.json
