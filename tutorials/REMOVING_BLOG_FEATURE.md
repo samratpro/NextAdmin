@@ -1,9 +1,9 @@
-# Removing the Built-in Blog Feature
+﻿# Removing the Built-in Blog Feature
 
-Nango comes with a simple Blog system (**Categories** and **Blog Posts**) by default to help you get started quickly. If you don't need this feature, you can remove it in a few simple steps.
+NextAdmin comes with a simple Blog system (**Categories** and **Blog Posts**) by default to help you get started quickly. If you don't need this feature, you can remove it in a few simple steps.
 
 ## Step 1: Remove API registration
-Open [api/src/index.ts](file:///c:/Users/samra/Desktop/My%20Dev/nango/api/src/index.ts) and remove the following sections:
+Open [api/src/index.ts](file:///c:/Users/samra/Desktop/My%20Dev/NextAdmin/api/src/index.ts) and remove the following sections:
 
 ### 1. Remove Imports (Lines ~36-37)
 ```typescript

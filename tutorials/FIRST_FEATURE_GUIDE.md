@@ -1,6 +1,6 @@
-# First Feature Guide
+﻿# First Feature Guide
 
-This is the fastest end-to-end path for building something real in Nango.
+This is the fastest end-to-end path for building something real in NextAdmin.
 
 Goal:
 

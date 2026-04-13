@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { authApi, SessionUser } from '@/lib/nango-api';
+import { authApi, SessionUser } from '@/lib/NextAdmin-api';
 
 interface AuthContextValue {
   user: SessionUser | null;

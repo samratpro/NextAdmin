@@ -1,6 +1,6 @@
-# Port Configuration
+﻿# Port Configuration
 
-Nango uses separate ports for separate concerns.
+NextAdmin uses separate ports for separate concerns.
 
 That split is intentional:
 

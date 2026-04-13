@@ -1,8 +1,8 @@
-# Database and Migrations
+﻿# Database and Migrations
 
-Nango does not use Prisma in this repo.
+NextAdmin does not use Prisma in this repo.
 
-Nango currently uses a lightweight sync-on-start model instead of a full migration framework.
+NextAdmin currently uses a lightweight sync-on-start model instead of a full migration framework.
 
 That means Prisma commands such as `npx prisma migrate dev` or `npx prisma db push` do not apply to this codebase as-is.
 

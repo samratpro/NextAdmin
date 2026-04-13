@@ -1,4 +1,4 @@
-# Google Drive Backup Integration
+﻿# Google Drive Backup Integration
 
 This guide walks you through connecting Google Drive to the Admin Backup panel so you can send backup files directly to your Google Drive with one click.
 
@@ -8,7 +8,7 @@ This guide walks you through connecting Google Drive to the Admin Backup panel s
 
 - Admin panel shows a **"Connect Google Drive"** button on the Backup → Backup Files tab
 - Clicking it opens a Google login popup
-- After you grant access, backup files can be uploaded to a `nango_backup/` folder in your Drive
+- After you grant access, backup files can be uploaded to a `NextAdmin_backup/` folder in your Drive
 - Tokens are stored server-side in `api/.google_tokens.json` — never exposed to the browser
 
 ---
@@ -17,7 +17,7 @@ This guide walks you through connecting Google Drive to the Admin Backup panel s
 
 1. Go to [https://console.cloud.google.com](https://console.cloud.google.com)
 2. Click the project dropdown (top-left) → **New Project**
-3. Give it a name (e.g. `nango-backup`) → **Create**
+3. Give it a name (e.g. `NextAdmin-backup`) → **Create**
 4. Make sure the new project is selected in the dropdown
 
 ---
@@ -36,13 +36,13 @@ This guide walks you through connecting Google Drive to the Admin Backup panel s
 2. Click **+ Create Credentials → OAuth client ID**
 3. If prompted, click **Configure Consent Screen** first:
    - Choose **External** (works for personal accounts)
-   - Fill in **App name** (e.g. `Nango Backup`), **User support email**, **Developer contact email**
+   - Fill in **App name** (e.g. `NextAdmin Backup`), **User support email**, **Developer contact email**
    - Click **Save and Continue** through all steps
    - On the **Test users** step, add your own Gmail address
    - Click **Back to Dashboard**
 4. Now go back to **Credentials → + Create Credentials → OAuth client ID**
 5. Application type: **Web application**
-6. Name: `Nango Admin`
+6. Name: `NextAdmin Admin`
 7. Under **Authorized redirect URIs**, click **+ Add URI** and enter the exact callback URL your API will use:
    ```
    http://localhost:8000/api/admin/backup/drive/callback
@@ -86,7 +86,7 @@ The file is stored securely at `api/.google_credentials.json` with owner-only pe
 3. A Google login popup opens — sign in with the Gmail you added as a test user
 4. Grant the requested permissions (Drive file access)
 5. The popup closes automatically and the banner turns green:
-   > *"Google Drive connected (OAuth2) — uploads go to nango_backup/"*
+   > *"Google Drive connected (OAuth2) — uploads go to NextAdmin_backup/"*
 
 ---
 
@@ -95,7 +95,7 @@ The file is stored securely at `api/.google_credentials.json` with owner-only pe
 1. Go to **Backup Files** tab
 2. Create a backup first if none exist (go to the **Databases** tab → **Create Backup**)
 3. In the backup files list, click **☁ Drive** next to any file
-4. The file is uploaded to a `nango_backup/` folder in your Google Drive
+4. The file is uploaded to a `NextAdmin_backup/` folder in your Google Drive
 5. A success notification appears with a direct link to the file in Drive
 
 ---
@@ -131,7 +131,7 @@ If you prefer a service account instead of OAuth2 (useful for fully automated/he
    GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}
    ```
    > Paste the entire JSON as a single line (minify it first if needed)
-6. Optional — share the `nango_backup` folder with your Gmail so files appear in your Drive:
+6. Optional — share the `NextAdmin_backup` folder with your Gmail so files appear in your Drive:
    ```env
    GOOGLE_DRIVE_SHARE_EMAIL=you@gmail.com
    ```

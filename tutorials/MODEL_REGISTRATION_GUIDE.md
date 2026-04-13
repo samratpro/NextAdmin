@@ -1,8 +1,8 @@
-# Model Registration Guide
+﻿# Model Registration Guide
 
 This guide explains the full path from "I want a model" to "I can manage it in the admin and use it in my app".
 
-In Nango, those are separate steps:
+In NextAdmin, those are separate steps:
 
 1. create the app folder
 2. define the model
@@ -212,7 +212,7 @@ export class BlogPost extends Model {
 
 ## `ForeignKey` vs `relatedFields`
 
-There are two valid ways to represent relationships in Nango admin.
+There are two valid ways to represent relationships in NextAdmin admin.
 
 ### Use `ForeignKey` when the ORM relationship is real
 
@@ -338,7 +338,7 @@ Use this rule of thumb:
 - choose `ForeignKey` for real model relationships
 - choose `relatedFields` for legacy or intentionally plain integer ID columns that should still behave like relations in the admin
 
-That keeps Nango explicit while still giving the admin enough metadata to render useful labels.
+That keeps NextAdmin explicit while still giving the admin enough metadata to render useful labels.
 
 ## Common Admin Options
 
@@ -379,7 +379,7 @@ If a model is API-only and you do not register it for admin:
 - it will not be auto-created through the admin registry startup path
 - you should create its table explicitly in startup code
 
-That is part of Nango's explicit design.
+That is part of NextAdmin's explicit design.
 
 ## Troubleshooting
 
@@ -410,7 +410,7 @@ Check:
 
 ## Recommended Mental Model
 
-In Nango, a model has three separate concerns:
+In NextAdmin, a model has three separate concerns:
 
 - data definition
 - admin registration

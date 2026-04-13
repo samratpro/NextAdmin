@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,7 +19,7 @@ export default function DashboardPage() {
               Welcome {user?.username}
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              This page is part of your public product frontend, not the Nango admin.
+              This page is part of your public product frontend, not the NextAdmin admin.
             </p>
           </div>
 

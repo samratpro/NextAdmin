@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useState } from 'react';
-import { authApi } from '@/lib/nango-api';
+import { authApi } from '@/lib/NextAdmin-api';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');

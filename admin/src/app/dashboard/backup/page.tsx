@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -333,7 +333,7 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
                   />
                   <span className="text-gray-400 mx-1">·</span>
                   <a
-                    href="https://github.com/samratpro/nango/blob/master/tutorials/GOOGLE_DRIVE_BACKUP.md"
+                    href="https://github.com/samratpro/NextAdmin/blob/master/tutorials/GOOGLE_DRIVE_BACKUP.md"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-gray-900"

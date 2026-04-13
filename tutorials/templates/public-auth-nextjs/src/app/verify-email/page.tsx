@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { authApi } from '@/lib/nango-api';
+import { authApi } from '@/lib/NextAdmin-api';
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();

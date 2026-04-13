@@ -1,6 +1,6 @@
-# User and Authentication Guide
+﻿# User and Authentication Guide
 
-This guide explains how to work with users, roles, and protected routes in Nango.
+This guide explains how to work with users, roles, and protected routes in NextAdmin.
 
 The key design rule is simple:
 

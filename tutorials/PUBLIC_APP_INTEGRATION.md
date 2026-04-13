@@ -1,6 +1,6 @@
-# Public App Integration
+﻿# Public App Integration
 
-This guide explains how to connect your own user-facing app to Nango without mixing it into the admin panel.
+This guide explains how to connect your own user-facing app to NextAdmin without mixing it into the admin panel.
 
 The short version:
 
@@ -58,7 +58,7 @@ You can keep the public app:
 One practical local setup is:
 
 ```text
-nango/
+NextAdmin/
 |- api/
 |- admin/
 `- tutorials/
@@ -69,7 +69,7 @@ my-public-app/
 Or, if you prefer one repository:
 
 ```text
-nango/
+NextAdmin/
 |- api/
 |- admin/
 |- app/
@@ -342,4 +342,4 @@ Use this split:
 - your public app for customers or end users
 - `api/` as the shared source of truth
 
-That is the intended integration model in Nango.
+That is the intended integration model in NextAdmin.

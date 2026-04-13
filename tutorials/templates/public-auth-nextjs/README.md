@@ -1,6 +1,6 @@
-# Public Auth Next.js Template
+﻿# Public Auth Next.js Template
 
-This is a reusable starter for building a custom user-facing auth flow on top of Nango.
+This is a reusable starter for building a custom user-facing auth flow on top of NextAdmin.
 
 It covers:
 
@@ -21,7 +21,7 @@ Also copy `.env.example` into your app as `.env.local`.
 
 ## Required Backend Settings
 
-In Nango `api/.env`, make sure:
+In NextAdmin `api/.env`, make sure:
 
 ```env
 FRONTEND_URL=http://localhost:3000

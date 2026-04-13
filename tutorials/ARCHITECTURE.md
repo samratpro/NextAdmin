@@ -1,13 +1,13 @@
-# Architecture
+﻿# Architecture
 
-Nango is a Django-inspired framework with a deliberately more decoupled structure.
+NextAdmin is a Django-inspired framework with a deliberately more decoupled structure.
 
 The backend, admin UI, and public frontend are not collapsed into one layer. That separation is intentional.
 
 ## High-Level Shape
 
 ```text
-nango/
+NextAdmin/
 |- api/         Fastify backend, ORM, auth, CLI
 |- admin/       Next.js admin application
 `- tutorials/   Documentation
@@ -15,9 +15,9 @@ nango/
 
 There is no built-in public `app/` directory in this repo right now. You are expected to build your user-facing frontend separately, either in another folder or in another repo, and point it at the API.
 
-## The Easiest Way to Think About Nango
+## The Easiest Way to Think About NextAdmin
 
-Nango is not one giant full-stack runtime.
+NextAdmin is not one giant full-stack runtime.
 
 It is three explicit pieces:
 
@@ -85,7 +85,7 @@ This is conceptually similar to Django apps, but the coupling is lighter. Routes
 
 ## What Is Automatic vs Explicit
 
-Some things in Nango are automatic after you wire them in, and some things are always explicit.
+Some things in NextAdmin are automatic after you wire them in, and some things are always explicit.
 
 Automatic after import:
 
@@ -162,9 +162,9 @@ That gives you:
 
 It also means the ORM is intentionally limited compared to Django's mature ORM.
 
-## What Nango Is Optimized For
+## What NextAdmin Is Optimized For
 
-Nango is strongest when you want:
+NextAdmin is strongest when you want:
 
 - a batteries-included backend starting point
 - a separate admin panel
@@ -174,7 +174,7 @@ Nango is strongest when you want:
 
 ## What It Is Not Trying to Be
 
-Nango is not currently:
+NextAdmin is not currently:
 
 - a full Django feature clone
 - a multi-database ORM abstraction

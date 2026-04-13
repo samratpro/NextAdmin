@@ -1,6 +1,6 @@
-# Rate Limiting
+﻿# Rate Limiting
 
-Nango includes rate limiting in the API layer to reduce abuse and blunt brute-force or spammy traffic patterns.
+NextAdmin includes rate limiting in the API layer to reduce abuse and blunt brute-force or spammy traffic patterns.
 
 ## Global Limit
 

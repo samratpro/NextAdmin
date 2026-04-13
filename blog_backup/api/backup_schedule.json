@@ -1,9 +1,0 @@
-{
-  "enabled": false,
-  "frequency": "daily",
-  "hour": 3,
-  "minute": 0,
-  "keepCount": 2,
-  "uploadToDrive": false,
-  "bandwidthLimitMbps": 50
-}

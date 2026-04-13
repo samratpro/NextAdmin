@@ -1,6 +1,6 @@
-# Tutorials
+﻿# Tutorials
 
-This folder contains the core documentation for working with Nango.
+This folder contains the core documentation for working with NextAdmin.
 
 If you are new to the project, this is the easiest reading path:
 
@@ -34,7 +34,7 @@ If you are trying to do a specific task, start here:
 
 ## What These Docs Try to Do
 
-Nango is not trying to be a one-to-one clone of Django.
+NextAdmin is not trying to be a one-to-one clone of Django.
 
 These guides explain how to use the project as it actually exists today:
 

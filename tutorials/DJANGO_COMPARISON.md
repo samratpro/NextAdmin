@@ -1,6 +1,6 @@
-# Django Comparison
+﻿# Django Comparison
 
-Nango is inspired by Django, but it does not try to reproduce Django exactly.
+NextAdmin is inspired by Django, but it does not try to reproduce Django exactly.
 
 This document is the easiest way to understand the overlap and the differences.
 
@@ -16,9 +16,9 @@ If you know Django, these ideas should feel natural:
 
 ## Where It Differs
 
-Nango is more explicitly decoupled.
+NextAdmin is more explicitly decoupled.
 
-Instead of one framework owning templates, admin rendering, routing, and database behavior in one place, Nango splits those concerns:
+Instead of one framework owning templates, admin rendering, routing, and database behavior in one place, NextAdmin splits those concerns:
 
 - Fastify handles the backend runtime
 - Next.js handles the admin UI
@@ -28,7 +28,7 @@ That is one of the main architectural differences from Django.
 
 ## Quick Mapping
 
-| Django | Nango |
+| Django | NextAdmin |
 | --- | --- |
 | `startapp` | `npm run startapp <name>` |
 | `settings.py` | `api/src/config/settings.ts` |
@@ -49,7 +49,7 @@ class Article(models.Model):
     published = models.BooleanField(default=False)
 ```
 
-Nango:
+NextAdmin:
 
 ```typescript
 export class Article extends Model {
@@ -67,7 +67,7 @@ Django:
 Article.objects.filter(published=True)
 ```
 
-Nango:
+NextAdmin:
 
 ```typescript
 Article.objects.filter({ published: true }).all()
@@ -77,13 +77,13 @@ Article.objects.filter({ published: true }).all()
 
 Django admin is tightly integrated with the backend framework.
 
-Nango admin is a separate frontend application that consumes the API. That gives you more UI flexibility, but also means the admin is not just a backend-side switch you turn on.
+NextAdmin admin is a separate frontend application that consumes the API. That gives you more UI flexibility, but also means the admin is not just a backend-side switch you turn on.
 
 ## Authentication
 
 Django defaults to session-oriented patterns.
 
-Nango ships with a JWT-oriented flow and keeps auth in the API layer, which fits modern frontend and API workflows more naturally.
+NextAdmin ships with a JWT-oriented flow and keeps auth in the API layer, which fits modern frontend and API workflows more naturally.
 
 ## What Django Still Does Better Today
 
@@ -94,11 +94,11 @@ Django is still stronger in several areas:
 - ecosystem depth
 - relational query richness
 
-Nango is not pretending otherwise.
+NextAdmin is not pretending otherwise.
 
-## What Nango Tries to Do Better
+## What NextAdmin Tries to Do Better
 
-Nango aims to be stronger in a different direction:
+NextAdmin aims to be stronger in a different direction:
 
 - cleaner separation between admin and backend
 - TypeScript across the stack
@@ -108,7 +108,7 @@ Nango aims to be stronger in a different direction:
 
 ## Best Mental Model
 
-Think of Nango as:
+Think of NextAdmin as:
 
 "Django's app-oriented productivity ideas, rebuilt for a TypeScript and API-first workflow, with stronger boundaries between layers."
 

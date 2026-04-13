@@ -1,6 +1,6 @@
-# Production Deployment
+﻿# Production Deployment
 
-This guide explains the practical deployment story for Nango today.
+This guide explains the practical deployment story for NextAdmin today.
 
 The short version:
 
@@ -10,7 +10,7 @@ The short version:
 
 ## Default Recommendation: SQLite
 
-Nango is optimized around SQLite and `better-sqlite3`.
+NextAdmin is optimized around SQLite and `better-sqlite3`.
 
 That is a reasonable production choice when you want:
 
@@ -37,7 +37,7 @@ Example:
 ```bash
 cd api
 npm run build
-pm2 start dist/index.js --name nango-api
+pm2 start dist/index.js --name NextAdmin-api
 ```
 
 ## Backups
@@ -121,7 +121,7 @@ The following is an example of what a future PostgreSQL setup could look like af
 
 ```env
 DB_CLIENT=postgres
-DATABASE_URL=postgres://app_user:app_password@db.example.com:5432/nango
+DATABASE_URL=postgres://app_user:app_password@db.example.com:5432/NextAdmin
 ```
 
 That example is illustrative only. It is not supported by the current implementation.
@@ -182,7 +182,7 @@ The key requirement is that it can reach the API and uses the correct `NEXT_PUBL
 
 ## Honest Current State
 
-Nango is production-capable today for teams that are comfortable with:
+NextAdmin is production-capable today for teams that are comfortable with:
 
 - a SQLite-first backend
 - a custom ORM with explicit boundaries

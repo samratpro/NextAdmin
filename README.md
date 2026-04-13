@@ -1,8 +1,8 @@
-# Nango
+﻿# NextAdmin
 
-Nango is a Django-inspired full-stack framework for Node.js that keeps the productive parts of Django while using a more decoupled architecture.
+NextAdmin is a Django-inspired full-stack framework for Node.js that keeps the productive parts of Django while using a more decoupled architecture.
 
-Instead of tightly coupling templates, admin, routing, and backend logic into one runtime, Nango separates concerns clearly:
+Instead of tightly coupling templates, admin, routing, and backend logic into one runtime, NextAdmin separates concerns clearly:
 
 - `api/` contains the backend, ORM, auth, and CLI tools.
 - `admin/` is a dedicated Next.js admin application.
@@ -10,7 +10,7 @@ Instead of tightly coupling templates, admin, routing, and backend logic into on
 
 The goal is not to clone Django line-for-line. The goal is to offer a familiar app-oriented workflow with looser coupling, clearer boundaries, and practical engineering defaults.
 
-## Why Nango
+## Why NextAdmin
 
 - Django-style apps for organizing backend features
 - a custom lightweight ORM for fast iteration with SQLite
@@ -35,7 +35,7 @@ Default local ports:
 
 ## How the Admin Fits With Your App
 
-Nango is intentionally split into separate layers:
+NextAdmin is intentionally split into separate layers:
 
 - `api/` is the shared backend
 - `admin/` is the internal management UI
@@ -57,7 +57,7 @@ In practice:
 - end users use your own frontend
 - both frontends talk to the same backend API
 
-If you are looking for "how to integrate the admin with the user's app", the answer in Nango is usually:
+If you are looking for "how to integrate the admin with the user's app", the answer in NextAdmin is usually:
 
 1. keep the admin separate
 2. point both frontends at the same API
@@ -101,8 +101,8 @@ This repo now enforces Node `20.x` during install, whether you run npm from the 
 ### Install
 
 ```bash
-git clone https://github.com/samratpro/nango.git
-cd nango
+git clone https://github.com/samratpro/NextAdmin.git
+cd NextAdmin
 
 npm install
 cd api && npm install
@@ -203,7 +203,7 @@ Imported models that use `@registerAdmin(...)` are now auto-created on startup a
 
 There is already a migration guide in [Database and Migrations](./tutorials/DATABASE_MIGRATIONS.md).
 
-Important: this repo is not using Prisma right now. Nango's backend uses its own lightweight ORM plus a sync-on-start table creation flow, so Prisma migration commands are not part of the current workflow.
+Important: this repo is not using Prisma right now. NextAdmin's backend uses its own lightweight ORM plus a sync-on-start table creation flow, so Prisma migration commands are not part of the current workflow.
 
 For quick reference:
 
@@ -265,7 +265,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ## Philosophy
 
-Nango is built around a few engineering principles:
+NextAdmin is built around a few engineering principles:
 
 - loose coupling over framework magic
 - explicit boundaries between backend, admin, and public frontend
@@ -277,7 +277,7 @@ If you come from Django, the structure will feel familiar. If you come from Node
 
 ## Production Database Reality
 
-Nango is currently SQLite-first.
+NextAdmin is currently SQLite-first.
 
 What is supported today:
 

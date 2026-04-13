@@ -1,6 +1,6 @@
-# Email Configuration Guide
+﻿# Email Configuration Guide
 
-Nango uses **Nodemailer** for sending transactional emails such as account verification and password resets. This guide explains how to configure your SMTP settings.
+NextAdmin uses **Nodemailer** for sending transactional emails such as account verification and password resets. This guide explains how to configure your SMTP settings.
 
 ## ⚙️ Environment Variables
 
@@ -24,7 +24,7 @@ Google requires **2-Factor Authentication** and an **App Password** to send emai
 
 1.  Enable **2-Step Verification** in your Google Account.
 2.  Search for **"App Passwords"** in your account settings.
-3.  Create a new app password (select "Other" and name it "Nango").
+3.  Create a new app password (select "Other" and name it "NextAdmin").
 4.  Copy the 16-character code into your `EMAIL_PASSWORD`.
 
 **Config for Gmail:**
@@ -34,7 +34,7 @@ EMAIL_PORT=587
 EMAIL_SECURE=false
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASSWORD=xxxx-xxxx-xxxx-xxxx
-EMAIL_FROM=Nango <your-email@gmail.com>
+EMAIL_FROM=NextAdmin <your-email@gmail.com>
 ```
 
 ### Mailtrap (Recommended for Testing)

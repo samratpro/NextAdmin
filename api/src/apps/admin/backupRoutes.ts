@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+﻿import { FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
 import fs from 'fs';
 import path from 'path';
@@ -116,7 +116,7 @@ function createThrottle(bytesPerSecond: number): Transform {
 
 // ─── Google Drive helpers ─────────────────────────────────────────────────────
 
-const DRIVE_FOLDER_NAME = 'nango_backup';
+const DRIVE_FOLDER_NAME = 'NextAdmin_backup';
 const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 const TOKENS_FILE      = path.resolve(process.cwd(), '.google_tokens.json');
 const CREDENTIALS_FILE = path.resolve(process.cwd(), '.google_credentials.json');
@@ -1001,7 +1001,7 @@ export default async function backupRoutes(fastify: FastifyInstance) {
   // 12. Upload a backup file to Google Drive
   fastify.post('/api/admin/backup/files/:filename/send-to-drive', {
     preHandler: requireSuperuser,
-    schema: { tags: ['Admin'], description: 'Upload a backup file to Google Drive nango_backup folder', security: [{ bearerAuth: [] }] },
+    schema: { tags: ['Admin'], description: 'Upload a backup file to Google Drive NextAdmin_backup folder', security: [{ bearerAuth: [] }] },
   }, async (request, reply) => {
     const safe = safeFilename((request.params as any).filename);
     const filePath = path.join(BACKUP_DIR, safe);
