@@ -1,14 +1,15 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardNavbar from '@/components/DashboardNavbar';
 import { api } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql';
+type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql' | 'seo-only';
 
 interface DbFile {
   name: string;
@@ -49,22 +50,25 @@ function formatDate(iso: string): string {
 }
 
 function acceptExt(engine?: DbEngine): string {
+  // Always accept .tar.gz (bundled backup) or engine-specific raw files
+  const tar = '.tar.gz';
   switch (engine) {
-    case 'postgresql': return '.dump';
+    case 'postgresql': return `${tar},.dump`;
     case 'mysql':
-    case 'mariadb':    return '.sql';
-    case 'mssql':      return '.bak';
-    default:           return '.sqlite3,.db';
+    case 'mariadb':    return `${tar},.sql`;
+    case 'mssql':      return `${tar},.bak`;
+    default:           return `${tar},.sqlite3,.db`;
   }
 }
 
 function acceptLabel(engine?: DbEngine): string {
+  const common = 'Full Backup (.tar.gz — DB + Assets)';
   switch (engine) {
-    case 'postgresql': return 'Backup File (.dump — pg_dump custom format)';
+    case 'postgresql': return `${common} or Raw Dump (.dump)`;
     case 'mysql':
-    case 'mariadb':    return 'Backup File (.sql — mysqldump)';
-    case 'mssql':      return 'Backup File (.bak — SQL Server backup)';
-    default:           return 'Backup File (.sqlite3)';
+    case 'mariadb':    return `${common} or Raw SQL (.sql)`;
+    case 'mssql':      return `${common} or Raw Backup (.bak)`;
+    default:           return `${common} or Raw DB (.sqlite3)`;
   }
 }
 
@@ -130,10 +134,14 @@ function DatabasesTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg:
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-gray-900 truncate">{db.name}</span>
-              <Badge color="bg-blue-100 text-blue-700">SQLite</Badge>
-              <span className="text-xs text-gray-400">{formatBytes(db.sizeBytes)}</span>
+              <Badge color={db.engine === 'seo-only' ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}>
+                {db.engine === 'seo-only' ? 'Module' : (db.engine === 'sqlite' ? 'SQLite' : db.engine.toUpperCase())}
+              </Badge>
+              {db.sizeBytes > 0 && <span className="text-xs text-gray-400">{formatBytes(db.sizeBytes)}</span>}
             </div>
-            <p className="text-xs text-gray-400 mt-0.5 truncate" title={db.path}>{db.path}</p>
+            <p className="text-xs text-gray-400 mt-0.5 truncate" title={db.path}>
+              {db.engine === 'seo-only' ? 'Bundles src/apps/seo_data & public/uploads/seo' : db.path}
+            </p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
             <button
@@ -966,6 +974,7 @@ function RunningTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
 export default function BackupPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const isSuperuser = !!user?.isSuperuser;
   const [tab, setTab] = useState<Tab>('databases');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -982,43 +991,27 @@ export default function BackupPage() {
     { id: 'running',   label: 'Running' },
   ];
 
-  return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-100">
-        {/* Nav */}
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex">
-                <div className="flex-shrink-0 flex items-center">
-                  <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-                </div>
-                <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                  <a href="/dashboard" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                    Dashboard
-                  </a>
-                  {user?.isSuperuser === true && (
-                    <a href="/dashboard/models/User" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                      Users
-                    </a>
-                  )}
-                  <a href="/dashboard/backup" className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                    Backup
-                  </a>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-700">{user?.username}</span>
-                <button
-                  onClick={async () => { await logout(); router.push('/login'); }}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Logout
-                </button>
-              </div>
+  // Superuser-only guard — must be after all hooks
+  if (user && !isSuperuser) {
+    return (
+      <ProtectedRoute>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg shadow-sm max-w-md w-full text-center">
+            <h2 className="text-lg font-bold mb-2">Access Denied</h2>
+            <p>Backup management is restricted to Superusers only.</p>
+            <div className="mt-4">
+              <a href="/dashboard" className="text-red-800 font-medium underline">Return to Dashboard</a>
             </div>
           </div>
-        </nav>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
+  return (
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
+        <DashboardNavbar />
 
         {/* Content */}
         <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

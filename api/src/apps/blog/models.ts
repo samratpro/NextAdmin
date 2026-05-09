@@ -26,7 +26,7 @@ export class Category extends Model {
   icon: 'file-text',
   permissions: ['view', 'add', 'change', 'delete'],
   listDisplay: ['id', 'title', 'slug', 'published', 'createdAt'],
-  searchFields: ['title', 'content', 'excerpt'],
+  searchFields: ['title', 'content', 'excerpt', 'metaTitle', 'metaDescription'],
   filterFields: ['published'],
   relatedFields: {
     categoryId: 'Category',
@@ -44,6 +44,9 @@ export class BlogPost extends Model {
   content = new TextField(); // Stores Editor.js JSON
   featuredImage = new CharField({ maxLength: 500, nullable: true });
   
+  metaTitle = new CharField({ maxLength: 60, nullable: true });
+  metaDescription = new CharField({ maxLength: 160, nullable: true });
+
   categoryId = new IntegerField({ nullable: true });
   authorId = new IntegerField({ nullable: true });
   

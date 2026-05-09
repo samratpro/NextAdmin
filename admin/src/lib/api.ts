@@ -225,6 +225,67 @@ class ApiClient {
     const response = await this.client.get('/api/admin/backup/log');
     return response.data;
   }
+
+  // SEO Management
+  async getSeoRobots() {
+    return this.get('/api/admin/seo/robots');
+  }
+
+  async updateSeoRobots(content: string) {
+    return this.post('/api/admin/seo/robots', { content });
+  }
+
+  async getSeoGlobalScripts() {
+    return this.get('/api/admin/seo/scripts');
+  }
+
+  async updateSeoGlobalScripts(data: any) {
+    return this.post('/api/admin/seo/scripts', data);
+  }
+
+  async listSeoPages() {
+    return this.get('/api/admin/seo/pages');
+  }
+
+  async updateSeoPage(data: any) {
+    return this.post('/api/admin/seo/pages', data);
+  }
+
+  async deleteSeoPage(slug: string) {
+    return this.delete(`/api/admin/seo/pages?slug=${encodeURIComponent(slug)}`);
+  }
+
+  async getSeoSitemapConfig() {
+    return this.get('/api/admin/seo/sitemap');
+  }
+
+  async updateSeoSitemapConfig(data: any) {
+    return this.post('/api/admin/seo/sitemap', data);
+  }
+
+  async uploadSeoImage(file: File, slug: string, imageType: 'og' | 'twitter') {
+    const form = new FormData();
+    form.append('file', file);
+    return this.client.post(
+      `/api/admin/seo/upload?slug=${encodeURIComponent(slug)}&type=${imageType}`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    ).then(res => res.data);
+  }
+
+  async createSeoBackup(toDrive: boolean = false) {
+    const response = await this.client.post(`/api/admin/seo/backup?drive=${toDrive}`);
+    return response.data;
+  }
+
+  async restoreSeoBackup(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await this.client.post('/api/admin/seo/restore', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();

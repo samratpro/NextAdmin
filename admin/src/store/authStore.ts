@@ -7,6 +7,7 @@ interface User {
   username: string;
   isStaff: boolean;
   isSuperuser: boolean;
+  permissions?: string[];
 }
 
 interface AuthState {
@@ -17,6 +18,7 @@ interface AuthState {
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
   checkAuth: () => boolean;
+  hasPermission: (codename: string) => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -75,5 +77,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   checkAuth: () => {
     return get().isAuthenticated;
+  },
+  
+  hasPermission: (codename: string) => {
+    const user = get().user;
+    if (!user) return false;
+    if (user.isSuperuser) return true;
+    return user.permissions?.includes(codename) || false;
   },
 }));

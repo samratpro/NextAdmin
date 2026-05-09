@@ -1,4 +1,4 @@
-﻿import { FastifyInstance } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
 import fs from 'fs';
 import path from 'path';
@@ -294,7 +294,7 @@ function listBackupFiles(): { name: string; mtime: number }[] {
     .filter(f =>
       !f.startsWith('pre-restore_') &&
       !f.startsWith('_') &&
-      (f.endsWith('.sqlite3') || f.endsWith('.dump') || f.endsWith('.sql') || f.endsWith('.bak'))
+      (f.endsWith('.sqlite3') || f.endsWith('.dump') || f.endsWith('.sql') || f.endsWith('.bak') || f.endsWith('.tar.gz'))
     )
     .map(f => ({ name: f, mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtimeMs }))
     .sort((a, b) => b.mtime - a.mtime);
@@ -438,6 +438,7 @@ function applyScheduleConfig(config: BackupScheduleConfig) {
   console.log(`[backup] Scheduler active — ${describeScheduleLog(config)} (cron: ${expr})`);
 }
 
+
 function describeScheduleLog(config: BackupScheduleConfig): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const time = `${pad(config.hour)}:${pad(config.minute)}`;
@@ -449,11 +450,11 @@ function describeScheduleLog(config: BackupScheduleConfig): string {
   }
 }
 
-type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql';
+type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql' | 'seo-only';
 
 interface DiscoveredDb {
   name: string;
-  /** File path for SQLite, PG_SENTINEL for PostgreSQL */
+  /** File path for SQLite, SENTINEL for server DBs, or __seo__ */
   path: string;
   sizeBytes: number;
   engine: DbEngine;
@@ -545,14 +546,24 @@ const ENGINE_LABEL: Record<string, string> = {
 
 function discoverDatabases(): DiscoveredDb[] {
   const engine = settings.database.engine as DbEngine;
+  const results: DiscoveredDb[] = [];
+
+  // Add SEO virtual "database" module
+  results.push({
+    name: 'SEO Assets & Metadata',
+    path: '__seo__',
+    sizeBytes: -1,
+    engine: 'seo-only',
+  });
 
   if (SERVER_ENGINES.includes(engine)) {
-    return [{
+    results.push({
       name: ENGINE_LABEL[engine] ?? engine,
       path: ENGINE_SENTINEL[engine] ?? `__${engine}__`,
       sizeBytes: -1,
       engine,
-    }];
+    });
+    return results;
   }
 
   // SQLite: scan filesystem
@@ -562,12 +573,14 @@ function discoverDatabases(): DiscoveredDb[] {
   for (const root of [process.cwd(), path.resolve(process.cwd(), '..')]) {
     for (const p of findSqliteFiles(root, 1)) found.set(p, p);
   }
-  return Array.from(found.values()).map(p => ({
+  results.push(...Array.from(found.values()).map(p => ({
     name: path.basename(p),
     path: p,
     sizeBytes: fs.statSync(p).size,
     engine: 'sqlite' as DbEngine,
-  }));
+  })));
+
+  return results;
 }
 
 function resolveAllowedDb(dbPath: string): DiscoveredDb | null {
@@ -706,27 +719,141 @@ async function restoreMssqlBackup(srcPath: string): Promise<string> {
 // ─── Unified dispatch helpers ─────────────────────────────────────────────────
 
 /** Returns { ext, label } for the backup file to be created */
-function backupMeta(engine: DbEngine): { ext: string; label: string } {
+function backupMeta(engine: DbEngine | 'seo-only'): { ext: string; label: string } {
   switch (engine) {
-    case 'postgresql': return { ext: '.dump', label: 'postgres' };
-    case 'mysql':      return { ext: '.sql',  label: 'mysql'    };
-    case 'mariadb':    return { ext: '.sql',  label: 'mariadb'  };
-    case 'mssql':      return { ext: '.bak',  label: 'mssql'    };
-    default:           return { ext: '.sqlite3', label: 'sqlite' };
+    case 'postgresql': return { ext: '.tar.gz', label: 'postgres' };
+    case 'mysql':      return { ext: '.tar.gz', label: 'mysql'    };
+    case 'mariadb':    return { ext: '.tar.gz', label: 'mariadb'  };
+    case 'mssql':      return { ext: '.tar.gz', label: 'mssql'    };
+    case 'seo-only':   return { ext: '.tar.gz', label: 'seo-only' };
+    default:           return { ext: '.tar.gz', label: 'sqlite'   };
   }
 }
 
 async function dispatchBackup(db: DiscoveredDb, destPath: string) {
-  switch (db.engine) {
-    case 'postgresql': return createPostgresBackup(destPath);
-    case 'mysql':
-    case 'mariadb':    return createMysqlBackup(destPath);
-    case 'mssql':      return createMssqlBackup(destPath);
-    default:           return createSqliteBackup(db.path, destPath);
+  const tmpDir = path.join(BACKUP_DIR, `_tmp_bak_${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  try {
+    // 1. Database backup (skip for SEO-only)
+    if (db.engine !== 'seo-only') {
+      const dbBackupFile = 'database.bak';
+      const dbBackupPath = path.join(tmpDir, dbBackupFile);
+      switch (db.engine) {
+        case 'postgresql': await createPostgresBackup(dbBackupPath); break;
+        case 'mysql':
+        case 'mariadb':    await createMysqlBackup(dbBackupPath); break;
+        case 'mssql':      await createMssqlBackup(dbBackupPath); break;
+        default:           await createSqliteBackup(db.path, dbBackupPath); break;
+      }
+    }
+
+    // 2. SEO Data (if exists)
+    const seoDataDir = 'src/apps/seo_data';
+    const seoDataAbs = path.resolve(process.cwd(), seoDataDir);
+    if (fs.existsSync(seoDataAbs)) {
+      const target = path.join(tmpDir, 'seo_data');
+      fs.cpSync(seoDataAbs, target, { recursive: true });
+    }
+
+    // 3. SEO Uploads (if exists)
+    const seoUploadsDir = 'public/uploads/seo';
+    const seoUploadsAbs = path.resolve(process.cwd(), seoUploadsDir);
+    if (fs.existsSync(seoUploadsAbs)) {
+      const target = path.join(tmpDir, 'seo_uploads');
+      fs.cpSync(seoUploadsAbs, target, { recursive: true });
+    }
+
+    // 4. Bundle into tarball
+    // Use -C to change to tmpDir and bundle everything inside
+    // Use --force-local to prevent tar from treating C: as a remote host
+    await execAsync(`tar --force-local -czf "${destPath}" -C "${tmpDir}" .`);
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+async function dispatchSeoBackup(destPath: string) {
+  const tmpDir = path.join(BACKUP_DIR, `_tmp_seo_bak_${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  try {
+    // 1. SEO Data
+    const seoDataDir = 'src/apps/seo_data';
+    const seoDataAbs = path.resolve(process.cwd(), seoDataDir);
+    if (fs.existsSync(seoDataAbs)) {
+      const target = path.join(tmpDir, 'seo_data');
+      fs.cpSync(seoDataAbs, target, { recursive: true });
+    }
+
+    // 2. SEO Uploads
+    const seoUploadsDir = 'public/uploads/seo';
+    const seoUploadsAbs = path.resolve(process.cwd(), seoUploadsDir);
+    if (fs.existsSync(seoUploadsAbs)) {
+      const target = path.join(tmpDir, 'seo_uploads');
+      fs.cpSync(seoUploadsAbs, target, { recursive: true });
+    }
+
+    // 3. Compress
+    const tarArgs = [
+      '-czf',
+      `"${destPath}"`,
+      '--force-local',
+      '-C',
+      `"${tmpDir}"`,
+      '.'
+    ];
+    await execAsync(`tar ${tarArgs.join(' ')}`);
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
 }
 
 async function dispatchRestore(db: DiscoveredDb, srcPath: string): Promise<string> {
+  // If it's a tarball, extract it first
+  if (srcPath.endsWith('.tar.gz')) {
+    const tmpDir = path.join(BACKUP_DIR, `_tmp_restore_${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    try {
+      await execAsync(`tar --force-local -xzf "${srcPath}" -C "${tmpDir}"`);
+
+      // 1. Restore Database (if present)
+      const dbBackupPath = path.join(tmpDir, 'database.bak');
+      let safetyName = '';
+      if (fs.existsSync(dbBackupPath)) {
+        switch (db.engine) {
+          case 'postgresql': safetyName = await restorePostgresBackup(dbBackupPath); break;
+          case 'mysql':
+          case 'mariadb':    safetyName = await restoreMysqlBackup(dbBackupPath); break;
+          case 'mssql':      safetyName = await restoreMssqlBackup(dbBackupPath); break;
+          default:           safetyName = await restoreSqliteBackup(dbBackupPath, db.path); break;
+        }
+      }
+
+      // 2. Restore SEO Data
+      const seoDataTmp = path.join(tmpDir, 'seo_data');
+      const seoDataDest = path.resolve(process.cwd(), 'src/apps/seo_data');
+      if (fs.existsSync(seoDataTmp)) {
+        fs.mkdirSync(seoDataDest, { recursive: true });
+        fs.cpSync(seoDataTmp, seoDataDest, { recursive: true });
+      }
+
+      // 3. Restore SEO Uploads
+      const seoUploadsTmp = path.join(tmpDir, 'seo_uploads');
+      const seoUploadsDest = path.resolve(process.cwd(), 'public/uploads/seo');
+      if (fs.existsSync(seoUploadsTmp)) {
+        fs.mkdirSync(seoUploadsDest, { recursive: true });
+        fs.cpSync(seoUploadsTmp, seoUploadsDest, { recursive: true });
+      }
+
+      return safetyName;
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  }
+
+  // Legacy fallback for old single-file backups
   switch (db.engine) {
     case 'postgresql': return restorePostgresBackup(srcPath);
     case 'mysql':
@@ -738,6 +865,9 @@ async function dispatchRestore(db: DiscoveredDb, srcPath: string): Promise<strin
 
 /** Validate the uploaded file matches the target engine */
 function validateUpload(filePath: string, engine: DbEngine): string | null {
+  // If it's a tarball, we trust it for now or we could inspect it
+  if (filePath.endsWith('.tar.gz')) return null;
+
   if (engine === 'sqlite') {
     if (detectFileType(filePath) !== 'sqlite') return 'Uploaded file is not a valid SQLite database';
   } else if (engine === 'postgresql') {
@@ -1064,6 +1194,106 @@ export default async function backupRoutes(fastify: FastifyInstance) {
   }, async (_req, reply) => {
     reply.send({ log: readLog(), running: backupRunning });
   });
+
+  // --- SEO Specific Backups ---
+
+  fastify.post<{ Querystring: { drive?: string } }>('/api/admin/seo/backup', { preHandler: [requireSuperuser] }, async (request, reply) => {
+    const toDrive = request.query.drive === 'true';
+    const startedAt = Date.now();
+    
+    ensureBackupDir();
+    const { ext, label } = backupMeta('seo-only');
+    const backupName = `${formatTimestamp(new Date())}_${label}${ext}`;
+    const backupPath = path.join(BACKUP_DIR, backupName);
+
+    try {
+      await dispatchSeoBackup(backupPath);
+      const sizeBytes = fs.statSync(backupPath).size;
+      
+      let uploadedDrive = false;
+      if (toDrive) {
+        const config = loadScheduleConfig();
+        await uploadFileToDrive(backupName, backupPath, config.bandwidthLimitMbps);
+        uploadedDrive = true;
+      }
+
+      const durationMs = Date.now() - startedAt;
+      appendLog({ 
+        at: new Date().toISOString(), 
+        trigger: 'manual', 
+        status: 'success', 
+        file: backupName, 
+        sizeBytes, 
+        durationMs, 
+        uploadedDrive,
+        deletedLocal: 0,
+        deletedDrive: 0 
+      });
+
+      return { success: true, file: backupName, sizeBytes, uploadedDrive };
+    } catch (err: any) {
+      const durationMs = Date.now() - startedAt;
+      const msg = err?.message ?? String(err);
+      appendLog({ 
+        at: new Date().toISOString(), 
+        trigger: 'manual', 
+        status: 'error', 
+        durationMs, 
+        uploadedDrive: false, 
+        deletedLocal: 0, 
+        deletedDrive: 0, 
+        error: msg 
+      });
+      return reply.status(500).send({ error: msg });
+    }
+  });
+
+  fastify.post('/api/admin/seo/restore', { preHandler: [requireSuperuser] }, async (request, reply) => {
+    const data = await request.file();
+    if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+
+    const tmpFile = path.join(BACKUP_DIR, `_restore_seo_${Date.now()}.tar.gz`);
+    const tmpDir = path.join(BACKUP_DIR, `_extract_seo_${Date.now()}`);
+    
+    try {
+      // 1. Save uploaded file
+      const writeStream = fs.createWriteStream(tmpFile);
+      await new Promise((resolve, reject) => {
+        data.file.pipe(writeStream);
+        data.file.on('end', resolve);
+        data.file.on('error', reject);
+      });
+
+      // 2. Extract
+      fs.mkdirSync(tmpDir, { recursive: true });
+      await execAsync(`tar -xzf "${tmpFile}" --force-local -C "${tmpDir}"`);
+
+      // 3. Restore SEO Data
+      const extSeoData = path.join(tmpDir, 'seo_data');
+      if (fs.existsSync(extSeoData)) {
+        const target = path.resolve(process.cwd(), 'src/apps/seo_data');
+        fs.mkdirSync(target, { recursive: true });
+        fs.cpSync(extSeoData, target, { recursive: true });
+      }
+
+      // 4. Restore SEO Uploads
+      const extSeoUploads = path.join(tmpDir, 'seo_uploads');
+      if (fs.existsSync(extSeoUploads)) {
+        const target = path.resolve(process.cwd(), 'public/uploads/seo');
+        fs.mkdirSync(target, { recursive: true });
+        fs.cpSync(extSeoUploads, target, { recursive: true });
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    } finally {
+      try { fs.unlinkSync(tmpFile); } catch {}
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  fastify.log.info('Backup routes registered');
 
   // Initialize scheduler from saved config on startup
   applyScheduleConfig(loadScheduleConfig());

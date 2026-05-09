@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import authService from './service';
+import permissionService from './permissionService';
 import { requireAuth } from '../../middleware/auth';
 import { z } from 'zod';
 import settings from '../../config/settings';
@@ -298,6 +299,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
-    reply.send({ user: request.user });
+    const permissions = await permissionService.getUserPermissions(request.user!.userId);
+    const permissionCodenames = permissions.map(p => p.codename);
+    
+    reply.send({ 
+      user: {
+        ...request.user,
+        permissions: permissionCodenames
+      }
+    });
   });
 }

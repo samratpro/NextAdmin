@@ -5,8 +5,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Admin Panel - Django-like Framework',
-  description: 'Admin panel for Django-like framework',
+  title: 'NextAdmin Panel - Next.js Admin Framework',
+  description: 'Admin panel with Nodejs using Nextjs, fastify, Prisma, TailwindCss',
 };
 
 export default function RootLayout({

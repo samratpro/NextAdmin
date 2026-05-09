@@ -1,5 +1,78 @@
 [
   {
+    "at": "2026-05-09T21:13:25.665Z",
+    "trigger": "manual",
+    "status": "success",
+    "file": "2026-05-10_03-13-25_seo-only.tar.gz",
+    "sizeBytes": 3293836,
+    "durationMs": 132,
+    "uploadedDrive": false,
+    "deletedLocal": 0,
+    "deletedDrive": 0
+  },
+  {
+    "at": "2026-05-09T21:13:23.302Z",
+    "trigger": "manual",
+    "status": "error",
+    "durationMs": 137,
+    "uploadedDrive": false,
+    "deletedLocal": 0,
+    "deletedDrive": 0,
+    "error": "Google Drive is not connected. Click \"Connect Google Drive\" to authenticate."
+  },
+  {
+    "at": "2026-05-09T21:12:16.050Z",
+    "trigger": "manual",
+    "status": "error",
+    "durationMs": 151,
+    "uploadedDrive": false,
+    "deletedLocal": 0,
+    "deletedDrive": 0,
+    "error": "Google Drive is not connected. Click \"Connect Google Drive\" to authenticate."
+  },
+  {
+    "at": "2026-05-09T21:12:07.217Z",
+    "trigger": "manual",
+    "status": "error",
+    "durationMs": 150,
+    "uploadedDrive": false,
+    "deletedLocal": 0,
+    "deletedDrive": 0,
+    "error": "Google Drive is not connected. Click \"Connect Google Drive\" to authenticate."
+  },
+  {
+    "at": "2026-05-09T21:00:03.547Z",
+    "trigger": "schedule",
+    "status": "success",
+    "file": "2026-05-10_03-00-00_sqlite.tar.gz",
+    "sizeBytes": 3304679,
+    "durationMs": 3478,
+    "uploadedDrive": true,
+    "deletedLocal": 2,
+    "deletedDrive": 0
+  },
+  {
+    "at": "2026-05-09T20:54:34.274Z",
+    "trigger": "manual",
+    "status": "success",
+    "file": "2026-05-10_02-54-29_sqlite.tar.gz",
+    "sizeBytes": 3304667,
+    "durationMs": 4982,
+    "uploadedDrive": true,
+    "deletedLocal": 2,
+    "deletedDrive": 0
+  },
+  {
+    "at": "2026-05-09T20:52:07.264Z",
+    "trigger": "manual",
+    "status": "error",
+    "durationMs": 2858,
+    "uploadedDrive": false,
+    "deletedLocal": 0,
+    "deletedDrive": 0,
+    "error": "Command failed: tar -czf \"C:\\Users\\samra\\Desktop\\My Dev\\NextAdmin\\api\\backups\\2026-05-10_02-52-04_sqlite.tar.gz\" -C \"C:\\Users\\samra\\Desktop\\My Dev\\NextAdmin\\api\\backups\\_tmp_bak_1778359924407\" .\ntar (child): Cannot connect to C: resolve failed\ntar: C\\:\\\\Users\\\\samra\\\\Desktop\\\\My Dev\\\\NextAdmin\\\\api\\\\backups\\\\2026-05-10_02-52-04_sqlite.tar.gz: Cannot write: Broken pipe\ntar: Child returned status 128\ntar: Error is not recoverable: exiting now\n"
+  },
+  {
     "at": "2026-04-11T16:58:34.683Z",
     "trigger": "manual",
     "status": "success",

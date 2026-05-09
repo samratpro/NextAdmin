@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import authService, { TokenPayload } from '../apps/auth/service';
 import { User } from '../apps/auth/models';
+import permissionService from '../apps/auth/permissionService';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -66,11 +67,29 @@ export async function requireSuperuser(
   reply: FastifyReply
 ): Promise<void> {
   await requireAuth(request, reply);
-
+  
   if (!request.user?.isSuperuser) {
     reply.code(403).send({ error: 'Superuser access required' });
     return;
   }
+}
+
+/**
+ * Higher-order function that returns a middleware for checking specific permissions
+ */
+export function requirePermission(codename: string) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    await requireAuth(request, reply);
+    
+    if (!request.user) return; // requireAuth already sent 401
+
+    const hasPerm = await permissionService.hasPermission(request.user.userId, codename);
+    
+    if (!hasPerm) {
+      reply.code(403).send({ error: `Permission denied: ${codename} required` });
+      return;
+    }
+  };
 }
 
 export async function requireBasicAuthSuperuser(

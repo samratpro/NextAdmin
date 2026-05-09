@@ -21,7 +21,8 @@ interface SidebarProps {
 export default function Sidebar({ className = '' }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user } = useAuthStore();
+    const { user, hasPermission } = useAuthStore();
+    const isSuperuser = !!user?.isSuperuser;
     const [models, setModels] = useState<ModelInfo[]>([]);
     const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
 
@@ -138,15 +139,30 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quick Links</h3>
                 <button
                     onClick={() => router.push('/dashboard')}
-                    className="w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 rounded transition-colors"
+                    className={`w-full px-3 py-2 text-sm text-left rounded transition-colors ${pathname === '/dashboard' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                 >
                     📊 Dashboard
                 </button>
+                {isSuperuser && (
+                    <button
+                        onClick={() => router.push('/dashboard/backup')}
+                        className={`w-full px-3 py-2 text-sm text-left rounded transition-colors ${pathname === '/dashboard/backup' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        💾 Backup Management
+                    </button>
+                )}
+                {hasPermission('seo.manage') && (
+                    <button
+                        onClick={() => router.push('/dashboard/seo')}
+                        className={`w-full px-3 py-2 text-sm text-left rounded transition-colors ${pathname === '/dashboard/seo' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                    >
+                        🔍 SEO Management
+                    </button>
+                )}
                 {user?.isSuperuser === true && (
                     <button
                         onClick={() => {
                             router.push('/dashboard');
-                            // Small delay to allow navigation to complete if not already on dashboard
                             setTimeout(() => {
                                 const element = document.getElementById('health-check-section');
                                 element?.scrollIntoView({ behavior: 'smooth' });
@@ -157,7 +173,6 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                         🏥 Health Check
                     </button>
                 )}
-
             </div>
         </div>
     );

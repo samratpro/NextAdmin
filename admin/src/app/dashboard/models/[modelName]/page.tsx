@@ -10,6 +10,7 @@ import ActionBar from '@/components/ActionBar';
 import Fieldset from '@/components/Fieldset';
 import Sidebar from '@/components/Sidebar';
 import DualListBox from '@/components/DualListBox';
+import CharacterCounter from '@/components/CharacterCounter';
 import dynamic from 'next/dynamic';
 
 const EditorField = dynamic(
@@ -100,6 +101,7 @@ export default function ModelDetailPage() {
     const isSeoProjectModel = modelName === 'SeoProject';
     const [allSeoUsers, setAllSeoUsers] = useState<any[]>([]);
     const [selectedSeoProjectUsers, setSelectedSeoProjectUsers] = useState<number[]>([]);
+
 
     useEffect(() => {
         if (modelName) {
@@ -711,13 +713,17 @@ export default function ModelDetailPage() {
                 );
             }
             return (
-                <textarea
-                    value={value}
-                    onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
-                    required={field.required && !field.nullable}
-                    className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    rows={4}
-                />
+                <div>
+                    <textarea
+                        value={value}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
+                        required={field.required && !field.nullable}
+                        maxLength={field.maxLength}
+                        className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                        rows={4}
+                    />
+                    {field.maxLength && <CharacterCounter current={value.length} max={field.maxLength} />}
+                </div>
             );
         }
 
@@ -859,14 +865,17 @@ export default function ModelDetailPage() {
         }
 
         return (
-            <input
-                type={field.type === 'EmailField' ? 'email' : field.type === 'URLField' ? 'url' : 'text'}
-                value={value}
-                onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value })}
-                required={field.required && !field.nullable}
-                maxLength={field.maxLength}
-                className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            />
+            <div>
+                <input
+                    type={field.type === 'EmailField' ? 'email' : field.type === 'URLField' ? 'url' : 'text'}
+                    value={value}
+                    onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value })}
+                    required={field.required && !field.nullable}
+                    maxLength={field.maxLength}
+                    className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+                {field.maxLength && <CharacterCounter current={String(value).length} max={field.maxLength} />}
+            </div>
         );
     };
 

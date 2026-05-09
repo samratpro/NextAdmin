@@ -1,3 +1,4 @@
+import path from 'path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
@@ -5,6 +6,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import cookie from '@fastify/cookie';
+import staticFiles from '@fastify/static';
 import logger from './core/logger';
 import settings from './config/settings';
 import DatabaseManager from './core/database';
@@ -12,6 +14,7 @@ import emailService from './core/email';
 import { ModelRegistry } from './core/ModelRegistry';
 import { requireBasicAuthSuperuser } from './middleware/auth';
 import permissionService from './apps/auth/permissionService';
+import seoRoutes from './apps/seo/routes';
 
 // Import models
 import {
@@ -69,6 +72,16 @@ async function initializeDatabase() {
     await permissionService.createModelPermissions(metadata.model.name, metadata.displayName);
   }
 
+  // Register manual permissions for non-model features
+  const seoPerm = await Permission.objects.get<any>({ codename: 'seo.manage' });
+  if (!seoPerm) {
+    await Permission.objects.create({
+      name: 'Can manage SEO settings',
+      codename: 'seo.manage',
+      modelName: 'SEO'
+    });
+  }
+
   logger.info('Database initialized successfully');
 }
 
@@ -82,6 +95,16 @@ async function start() {
 
     // Register Cookie support
     await fastify.register(cookie);
+
+    // Serve static files from public/ (e.g. /uploads/seo/...)
+    await fastify.register(staticFiles, {
+      root: path.join(__dirname, '../public'),
+      prefix: '/',
+      decorateReply: false,
+      setHeaders: (res) => {
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      }
+    });
 
     // Register Security Headers
     await fastify.register(helmet, {
@@ -115,8 +138,8 @@ async function start() {
     await fastify.register(swagger, {
       openapi: {
         info: {
-          title: 'Django-like Framework API',
-          description: 'API documentation for Django-like framework built with Fastify',
+          title: 'NextAdmin API',
+          description: 'API documentation for NextAdmin',
           version: '1.0.0'
         },
         servers: [
@@ -163,6 +186,7 @@ async function start() {
     await fastify.register(permissionsRoutes);
     await fastify.register(backupRoutes);
     await fastify.register(blogRoutes);
+    await fastify.register(seoRoutes);
 
     // Health check
     fastify.get('/health', {

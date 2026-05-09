@@ -65,3 +65,9 @@ tmp/
 
 admin/public/uploads/
 **/public/uploads/
+
+# Backups & Dynamic Data
+backups/
+api/backups/
+*.tar.gz
+api/src/apps/seo_data/
