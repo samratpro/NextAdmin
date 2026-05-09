@@ -62,3 +62,6 @@ coverage/
 .cache/
 .temp/
 tmp/
+
+admin/public/uploads/
+**/public/uploads/

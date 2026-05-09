@@ -615,7 +615,7 @@ export default function ModelDetailPage() {
                 <input
                     type="password"
                     value={value}
-                    onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
                     required={!editingItem && field.required && !field.nullable}
                     className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     placeholder={editingItem ? "Leave blank to keep current" : "Enter password"}
@@ -650,7 +650,7 @@ export default function ModelDetailPage() {
                         <select
                             size={Math.min(Math.max(filtered.length + 1, 3), 5)}
                             value={value}
-                            onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value ? Number(e.target.value) : null })}
+                            onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value ? Number(e.target.value) : null }))}
                             required={field.required && !field.nullable}
                             className="block w-full border border-t-0 border-gray-300 rounded-b-lg shadow-sm py-1 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
                         >
@@ -691,7 +691,7 @@ export default function ModelDetailPage() {
                     <input
                         type="checkbox"
                         checked={!!value}
-                        onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.checked })}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.checked }))}
                         className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                     />
                     <label className="ml-2 text-sm text-gray-700">
@@ -706,14 +706,14 @@ export default function ModelDetailPage() {
                 return (
                     <EditorField
                         value={value}
-                        onChange={(newValue) => setFormData({ ...formData, [fieldName]: newValue })}
+                        onChange={(newValue) => setFormData(prev => ({ ...prev, [fieldName]: newValue }))}
                     />
                 );
             }
             return (
                 <textarea
                     value={value}
-                    onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
                     required={field.required && !field.nullable}
                     className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     rows={4}
@@ -729,7 +729,7 @@ export default function ModelDetailPage() {
                 <input
                     type="datetime-local"
                     value={dtValue}
-                    onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value ? new Date(e.target.value).toISOString() : null }))}
                     required={field.required && !field.nullable}
                     className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
@@ -742,7 +742,7 @@ export default function ModelDetailPage() {
                 <input
                     type="date"
                     value={dValue}
-                    onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value || null })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value || null }))}
                     required={field.required && !field.nullable}
                     className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
@@ -771,7 +771,7 @@ export default function ModelDetailPage() {
                         <input
                             type="url"
                             value={value || ''}
-                            onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value })}
+                            onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
                             placeholder="https://... or upload below"
                             className="flex-1 block border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                         />
@@ -851,7 +851,7 @@ export default function ModelDetailPage() {
                 <input
                     type="number"
                     value={value}
-                    onChange={(e) => setFormData({ ...formData, [fieldName]: e.target.value })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
                     required={field.required && !field.nullable}
                     className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />

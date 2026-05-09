@@ -14,15 +14,34 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_SIZE) return NextResponse.json({ error: 'Max 5 MB' }, { status: 400 });
 
     const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    if (!fs.existsSync(uploadDir)) {
+      console.log('[upload] Creating upload directory:', uploadDir);
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
 
     const ext = path.extname(file.name) || '.jpg';
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-    await fs.promises.writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()));
+    const filePath = path.join(uploadDir, fileName);
+    
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    
+    await fs.promises.writeFile(filePath, buffer);
+    console.log('[upload] File saved to:', filePath);
 
-    return NextResponse.json({ url: `/uploads/${fileName}` });
-  } catch (err) {
-    console.error('[upload]', err);
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    return NextResponse.json({ 
+      url: `/uploads/${fileName}`,
+      success: 1, // Added for EditorJS compatibility
+      file: {
+        url: `/uploads/${fileName}`
+      }
+    });
+  } catch (err: any) {
+    console.error('[upload] Error during upload:', err);
+    return NextResponse.json({ 
+      error: 'Upload failed', 
+      message: err.message,
+      success: 0 
+    }, { status: 500 });
   }
 }

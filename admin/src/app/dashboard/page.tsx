@@ -27,7 +27,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (user?.isSuperuser === true) {
+    if (user?.isSuperuser) {
       const fetchUserCount = async () => {
         try {
           const response = await api.get('/api/admin/users');

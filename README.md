@@ -1,4 +1,4 @@
-﻿# NextAdmin
+# NextAdmin
 
 NextAdmin is a Django-inspired full-stack framework for Node.js that keeps the productive parts of Django while using a more decoupled architecture.
 
@@ -297,6 +297,26 @@ If you need the honest current status and migration options, read:
 
 - [Production Deployment](./tutorials/PRODUCTION_DEPLOYMENT.md)
 - [Database and Migrations](./tutorials/DATABASE_MIGRATIONS.md)
+
+## Troubleshooting Native Modules
+
+If you see an error like `Error: The module ... was compiled against a different Node.js version`, it means a native module (like `better-sqlite3`) was installed with one Node version but you are trying to run it with another.
+
+### Fix
+Run the rebuild command in the `api` directory using your current Node version:
+
+```bash
+cd api
+npm rebuild better-sqlite3
+```
+
+If that doesn't work, perform a clean install:
+
+```bash
+cd api
+rm -rf node_modules
+npm install
+```
 
 ## Documentation
 
