@@ -62,11 +62,8 @@ curl http://localhost:8000/health
 # 5. Create first admin user (once only)
 docker-compose exec api node dist/cli/create_user.js
 
-# 6. Set up Nginx (Step 6 below)
-
-# 7. SSL
-certbot --nginx -d api.yourdomain.com
-certbot --nginx -d admin.yourdomain.com
+# 6. Nginx + SSL (reads domains/ports from .env automatically)
+bash setup-nginx.sh
 ```
 
 **Most likely failure points:**
@@ -204,93 +201,59 @@ The user persists in PostgreSQL across restarts.
 
 ---
 
-## Step 6 — Nginx Configuration
+## Step 6 — Nginx + SSL (one command)
 
-### API subdomain
+The script reads your `.env` and handles everything: creates nginx configs, enables them, and gets SSL certificates.
+
 ```bash
-mkdir -p /etc/nginx/sites-available
+bash setup-nginx.sh
 ```
+
+#### For aapanel
+removed
 ```bash
-cat > /etc/nginx/sites-available/api.yourdomain.com << 'EOF'
-server {
-    listen 80;
-    server_name api.yourdomain.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name api.yourdomain.com;
-
-    ssl_certificate     /etc/letsencrypt/live/api.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass         http://127.0.0.1:8000;  # change
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
+   #Prohibit putting sensitive files in certificate verification directory
+    if ( $uri ~ "^/\.well-known/.*\.(php|jsp|py|js|css|lua|ts|go|zip|tar\.gz|rar|7z|sql|bak)$" ) {
+        return 403;
     }
-}
-EOF
-```
 
-### Admin subdomain
-
-```bash
-cat > /etc/nginx/sites-available/admin.yourdomain.com << 'EOF'
-server {
-    listen 80;
-    server_name admin.yourdomain.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name admin.yourdomain.com;
-
-    ssl_certificate     /etc/letsencrypt/live/admin.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/admin.yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass         http://127.0.0.1:7000; # change
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
+    location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$
+    {
+        expires      30d;
+        error_log /dev/null;
+        access_log /dev/null;
     }
+
+    location ~ .*\.(js|css)?$
+    {
+        expires      12h;
+        error_log /dev/null;
+        access_log /dev/null; 
+    }
+```
+replace with
+```bash
+location / {
+    proxy_pass http://127.0.0.1:7006; # The port where your app is running
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
-EOF
 ```
 
-### Enable and reload
+That's it. Certbot adds HTTPS automatically and sets up auto-renewal.
 
+Verify after it finishes:
 ```bash
-ln -s /etc/nginx/sites-available/api.yourdomain.com   /etc/nginx/sites-enabled/
-ln -s /etc/nginx/sites-available/admin.yourdomain.com /etc/nginx/sites-enabled/
-
-nginx -t        # verify syntax
-nginx -s reload
+certbot renew --dry-run    # confirm auto-renewal works
+curl https://api.yourdomain.com/health
 ```
 
-> **BaoTa / aaPanel:** Create each subdomain through the panel UI, then edit the generated `.conf` to add the `proxy_pass` block. Reload with `/www/server/nginx/sbin/nginx -s reload`.
-
----
-
-## Step 7 — SSL Certificates
-
-```bash
-certbot --nginx -d api.yourdomain.com
-certbot --nginx -d admin.yourdomain.com
-```
-
-Test auto-renewal:
-```bash
-certbot renew --dry-run
-```
+> **BaoTa / aaPanel:** Create each subdomain through the panel UI first, then run `bash setup-nginx.sh` — the script will overwrite the proxy config and get SSL certs.
 
 ---
 
