@@ -203,57 +203,68 @@ The user persists in PostgreSQL across restarts.
 
 ## Step 6 — Nginx + SSL (one command)
 
-The script reads your `.env` and handles everything: creates nginx configs, enables them, and gets SSL certificates.
-
 ```bash
 bash setup-nginx.sh
 ```
 
-#### For aapanel
-removed
-```bash
-   #Prohibit putting sensitive files in certificate verification directory
-    if ( $uri ~ "^/\.well-known/.*\.(php|jsp|py|js|css|lua|ts|go|zip|tar\.gz|rar|7z|sql|bak)$" ) {
-        return 403;
-    }
+The script reads domains and ports from `.env` and handles everything:
 
-    location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$
-    {
-        expires      30d;
-        error_log /dev/null;
-        access_log /dev/null;
-    }
-
-    location ~ .*\.(js|css)?$
-    {
-        expires      12h;
-        error_log /dev/null;
-        access_log /dev/null; 
-    }
-```
-replace with
-```bash
-location / {
-    proxy_pass http://127.0.0.1:7006; # The port where your app is running
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-```
-
-That's it. Certbot adds HTTPS automatically and sets up auto-renewal.
+1. Detects aaPanel or standard Nginx automatically
+2. Writes proxy configs to the correct path for your setup
+3. Issues SSL certificates via certbot webroot (no plugin required — works on aaPanel too)
+4. Rewrites configs to HTTPS and reloads Nginx
 
 Verify after it finishes:
 ```bash
-certbot renew --dry-run    # confirm auto-renewal works
+certbot renew --dry-run
 curl https://api.yourdomain.com/health
 ```
 
-> **BaoTa / aaPanel:** Create each subdomain through the panel UI first, then run `bash setup-nginx.sh` — the script will overwrite the proxy config and get SSL certs.
+### Manual aaPanel Config
+
+If you prefer to configure through the aaPanel UI instead of the script:
+
+1. Create each subdomain as a site in aaPanel (Website → Add site)
+2. In the generated nginx config, find and **remove** these default static file blocks:
+
+```nginx
+#Prohibit putting sensitive files in certificate verification directory
+if ( $uri ~ "^/\.well-known/.*\.(php|jsp|py|js|css|lua|ts|go|zip|tar\.gz|rar|7z|sql|bak)$" ) {
+    return 403;
+}
+
+location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$
+{
+    expires      30d;
+    error_log /dev/null;
+    access_log /dev/null;
+}
+
+location ~ .*\.(js|css)?$
+{
+    expires      12h;
+    error_log /dev/null;
+    access_log /dev/null;
+}
+```
+
+3. **Replace** them with the proxy block (use your actual port from `.env`):
+
+```nginx
+location / {
+    proxy_pass         http://127.0.0.1:8000;  # change port
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade           $http_upgrade;
+    proxy_set_header   Connection        "upgrade";
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+}
+```
+
+4. Use **aaPanel → Website → SSL** to issue the Let's Encrypt certificate for each subdomain.
+5. Reload: `/www/server/nginx/sbin/nginx -s reload`
 
 ---
 
