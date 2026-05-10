@@ -13,7 +13,7 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     networks:
       - backend
     healthcheck:
@@ -55,7 +55,7 @@ services:
       - backend
       - frontend
     volumes:
-      - api_uploads:/app/public
+      - ./data/uploads:/app/public
 
   admin:
     build:
@@ -77,6 +77,4 @@ networks:
   frontend:
     driver: bridge
 
-volumes:
-  postgres_data:
-  api_uploads:
+# Data is stored at ./data/ on the host — survives docker-compose down and Docker removal.

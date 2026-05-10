@@ -28,9 +28,14 @@ NextAdmin/
 ├── docker-compose.yml    ← reads all config from .env
 ├── api/
 │   └── Dockerfile
-└── admin/
-    └── Dockerfile
+├── admin/
+│   └── Dockerfile
+└── data/                 ← created automatically on first run, never committed
+    ├── postgres/         ← PostgreSQL data files (survives docker-compose down)
+    └── uploads/          ← API uploaded files (media, SEO images, etc.)
 ```
+
+`data/` is a bind mount on the host. It is never touched by `docker-compose down` or `docker-compose down -v`, and survives Docker removal entirely. Back it up like any other directory.
 
 ---
 
@@ -356,6 +361,10 @@ rm -rf /www/server/nginx/proxy_cache_dir/*
 docker rm -f nextadmin-admin-1
 docker-compose up -d admin
 ```
+
+### Another PostgreSQL is already running on the server
+
+No conflict. The `postgres` container in this setup has no `ports:` mapping — it is internal to Docker only and never binds to the host's `5432`. Other projects or a host PostgreSQL instance are completely isolated.
 
 ### Nginx serves stale JS after a rebuild
 

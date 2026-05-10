@@ -71,3 +71,6 @@ backups/
 api/backups/
 *.tar.gz
 api/src/apps/seo_data/
+
+# Production data (bind-mounted Docker volumes)
+data/
