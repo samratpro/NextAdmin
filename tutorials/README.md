@@ -1,36 +1,41 @@
-﻿# Tutorials
+# Tutorials
 
 This folder contains the core documentation for working with NextAdmin.
 
-If you are new to the project, this is the easiest reading path:
+If you are new to the project, read in this order:
 
-1. [Architecture](./ARCHITECTURE.md)
-2. [First Feature Guide](./FIRST_FEATURE_GUIDE.md)
-3. [Public App Integration](./PUBLIC_APP_INTEGRATION.md)
-4. [Model Registration Guide](./MODEL_REGISTRATION_GUIDE.md)
-5. [User and Authentication Guide](./USER_AND_AUTH_GUIDE.md)
-6. [Custom Public Auth Template](./CUSTOM_PUBLIC_AUTH_TEMPLATE.md)
-7. [Database and Migrations](./DATABASE_MIGRATIONS.md)
-8. [Email Configuration](./EMAIL_CONFIGURATION.md)
-9. [Port Configuration](./PORT_CONFIGURATION.md)
+1. [Architecture](./01_ARCHITECTURE.md)
+2. [Django Comparison](./02_DJANGO_COMPARISON.md)
+3. [First Feature Guide](./03_FIRST_FEATURE_GUIDE.md)
+4. [Public App Integration](./04_PUBLIC_APP_INTEGRATION.md)
+5. [Model Registration Guide](./05_MODEL_REGISTRATION_GUIDE.md)
+6. [User and Authentication Guide](./06_USER_AND_AUTH_GUIDE.md)
+7. [Database and Migrations](./07_DATABASE_MIGRATIONS.md)
+8. [Email Configuration](./08_EMAIL_CONFIGURATION.md)
+9. [Port Configuration](./09_PORT_CONFIGURATION.md)
+10. [Rate Limiting](./10_RATE_LIMITING.md)
+11. [EditorJS Integration](./11_EDITORJS_INTEGRATION.md)
+12. [Google Drive Backup](./12_GOOGLE_DRIVE_BACKUP.md)
+13. [SEO Integration](./13_SEO_INTEGRATION.md)
+14. [Removing Blog Feature](./14_REMOVING_BLOG_FEATURE.md)
+15. [Production Deployment](./15_PRODUCTION_DEPLOYMENT.md)
+16. [CI/CD with GitHub Actions](./16_CICD_GITHUB_ACTIONS.md)
 
-Use these when you need deeper operational guidance:
-
-- [Production Deployment](./PRODUCTION_DEPLOYMENT.md)
-- [Rate Limiting](./RATE_LIMITING.md)
-- [Django Comparison](./DJANGO_COMPARISON.md)
+---
 
 ## Common Goals
 
-If you are trying to do a specific task, start here:
+| I want to… | Start here |
+|---|---|
+| Create my first app, model, route, and admin flow | [03_FIRST_FEATURE_GUIDE.md](./03_FIRST_FEATURE_GUIDE.md) |
+| Understand how the admin and public app fit together | [04_PUBLIC_APP_INTEGRATION.md](./04_PUBLIC_APP_INTEGRATION.md) |
+| Understand model wiring and admin registration | [05_MODEL_REGISTRATION_GUIDE.md](./05_MODEL_REGISTRATION_GUIDE.md) |
+| Set up login, registration, and protected routes | [06_USER_AND_AUTH_GUIDE.md](./06_USER_AND_AUTH_GUIDE.md) |
+| Set up SMTP for email verification and password reset | [08_EMAIL_CONFIGURATION.md](./08_EMAIL_CONFIGURATION.md) |
+| Deploy to a VPS with Docker | [15_PRODUCTION_DEPLOYMENT.md](./15_PRODUCTION_DEPLOYMENT.md) |
+| Set up auto-deploy from GitHub | [16_CICD_GITHUB_ACTIONS.md](./16_CICD_GITHUB_ACTIONS.md) |
 
-- create your first app, model, route, and admin flow: [First Feature Guide](./FIRST_FEATURE_GUIDE.md)
-- understand how the admin and your public app fit together: [Public App Integration](./PUBLIC_APP_INTEGRATION.md)
-- understand model wiring and admin registration in detail: [Model Registration Guide](./MODEL_REGISTRATION_GUIDE.md)
-- set up login, registration, and protected routes: [User and Authentication Guide](./USER_AND_AUTH_GUIDE.md)
-- build a custom public dashboard with signup, verification, reset, and profile flows: [Custom Public Auth Template](./CUSTOM_PUBLIC_AUTH_TEMPLATE.md)
-- set up SMTP for verification and reset emails: [Email Configuration](./EMAIL_CONFIGURATION.md)
-- understand current database limits and production tradeoffs: [Production Deployment](./PRODUCTION_DEPLOYMENT.md)
+---
 
 ## What These Docs Try to Do
 
