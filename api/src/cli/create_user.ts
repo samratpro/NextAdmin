@@ -29,7 +29,7 @@ async function run() {
         import('../config/settings'),
     ]);
 
-    DatabaseManager.initialize(settings.database.path);
+    DatabaseManager.initialize(settings.database);
     await User.createTable();
 
     console.log('\n--- Create User ---');

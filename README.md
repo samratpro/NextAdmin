@@ -145,6 +145,10 @@ This builds both `api` and `admin` on the pinned Node version.
 cd api
 npm run createsuperuser
 ```
+In docker
+```bash
+docker exec -it container_name node dist/cli/create_user.js
+```
 
 ### Create a New App
 

@@ -95,6 +95,15 @@ export class BooleanField extends Field {
   getSQLType(): string {
     return 'BOOLEAN';
   }
+
+  getFullDefinition(): string {
+    // The base getConstraints() emits DEFAULT 1 / DEFAULT 0 for boolean options.
+    // PostgreSQL's BOOLEAN column rejects integer literals; use TRUE/FALSE instead.
+    // SQLite ≥3.23 also accepts TRUE/FALSE, so this is safe for both engines.
+    return super.getFullDefinition()
+      .replace(/\bDEFAULT 1\b/, 'DEFAULT TRUE')
+      .replace(/\bDEFAULT 0\b/, 'DEFAULT FALSE');
+  }
 }
 
 export class DateTimeField extends Field {

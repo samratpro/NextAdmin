@@ -4,6 +4,7 @@ import { ModelRegistry } from '../../core/ModelRegistry';
 import DatabaseManager from '../../core/database';
 import { User } from '../auth/models';
 import permissionService from '../auth/permissionService';
+import settings from '../../config/settings';
 import {
   paginationQuerySchema,
   modelNameParamSchema,
@@ -190,7 +191,10 @@ export default async function adminRoutes(fastify: FastifyInstance) {
                 .filter(f => validFields.includes(f));
             if (searchFields.length > 0) {
                 const pattern = `%${searchTerm}%`;
-                whereClause = ` WHERE (${searchFields.map(f => `${f} LIKE ?`).join(' OR ')})`;
+                // PostgreSQL LIKE is case-sensitive; use ILIKE for case-insensitive search.
+                // SQLite LIKE is case-insensitive for ASCII by default, so LIKE is fine there.
+                const likeOp = settings.database.engine === 'postgresql' ? 'ILIKE' : 'LIKE';
+                whereClause = ` WHERE (${searchFields.map(f => `${f} ${likeOp} ?`).join(' OR ')})`;
                 searchParams.push(...searchFields.map(() => pattern));
             }
         }
@@ -208,7 +212,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
         const instances = rows.map(row => {
             const instance = new (metadata.model as any)();
-            Object.assign(instance, row);
+            Object.assign(instance, metadata.model.normaliseRow(row));
             return instance;
         });
 

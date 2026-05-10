@@ -10,9 +10,12 @@ function toPostgresParams(sql: string): string {
 /**
  * Translate SQLite DDL quirks to PostgreSQL equivalents:
  *   INTEGER PRIMARY KEY AUTOINCREMENT  →  SERIAL PRIMARY KEY
+ *   DATETIME                           →  TIMESTAMP
  */
 function translateDDL(sql: string): string {
-  return sql.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY');
+  return sql
+    .replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY')
+    .replace(/\bDATETIME\b/gi, 'TIMESTAMP');
 }
 
 export class PostgresAdapter implements DbAdapter {

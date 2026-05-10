@@ -1,191 +1,366 @@
-﻿# Production Deployment
+# Production Deployment Guide
 
-This guide explains the practical deployment story for NextAdmin today.
+Deploying NextAdmin on a Linux VPS: PostgreSQL + API + Admin panel inside Docker, with Nginx as a reverse proxy and SSL.
 
-The short version:
+---
 
-- SQLite is the default and works well for many small and medium deployments
-- PostgreSQL is possible, but not yet a drop-in runtime switch
-- the current ORM is still shaped around SQLite assumptions
+## Architecture
 
-## Default Recommendation: SQLite
+```
+Browser
+  │
+  ├── https://admin.yourdomain.com  →  Nginx  →  localhost:7000  (Next.js Admin)
+  └── https://api.yourdomain.com    →  Nginx  →  localhost:8000  (Fastify API)
+                                                        │
+                                               postgres:5432  (internal only)
+```
 
-NextAdmin is optimized around SQLite and `better-sqlite3`.
+Three Docker containers on one server. Nginx handles HTTPS and proxies to each container's host port. **To reconfigure, change only `.env` — nothing else.**
 
-That is a reasonable production choice when you want:
+---
 
-- low infrastructure overhead
-- simple backups
-- a single-server deployment
-- modest write volume
-- fast local-to-production parity
+## File Map
 
-SQLite is often underestimated. For many internal tools, admin-heavy systems, and moderate traffic apps, it is entirely practical.
+```
+NextAdmin/
+├── .env                  ← CREATE THIS on the server (copy from .env.example)
+├── .env.example          ← committed template — never commit .env
+├── docker-compose.yml    ← reads all config from .env
+├── api/
+│   └── Dockerfile
+└── admin/
+    └── Dockerfile
+```
 
-## A Good SQLite Deployment Shape
+---
 
-Typical setup:
-
-1. deploy the API to a VPS or persistent VM
-2. keep the database on durable local disk
-3. run the process with a supervisor such as `pm2`
-4. proxy traffic through Nginx or Caddy
-5. back up the SQLite file regularly
-
-Example:
+## Quick Deploy Checklist
 
 ```bash
-cd api
-npm run build
-pm2 start dist/index.js --name NextAdmin-api
+# 1. Clone
+cd /www/wwwroot
+git clone https://github.com/<your-org>/NextAdmin.git
+cd NextAdmin
+
+# 2. Create .env
+cp .env.example .env
+nano .env
+
+# 3. Build and start
+docker-compose build
+docker-compose up -d
+
+# 4. Verify
+docker-compose ps
+curl http://localhost:8000/health
+
+# 5. Create first admin user (once only)
+docker-compose exec api node dist/cli/create_user.js
+
+# 6. Set up Nginx (Step 6 below)
+
+# 7. SSL
+certbot --nginx -d api.yourdomain.com
+certbot --nginx -d admin.yourdomain.com
 ```
 
-## Backups
+**Most likely failure points:**
 
-At minimum, back up:
+| Symptom | Check |
+|---------|-------|
+| API container exits on start | `docker-compose logs api` — missing or wrong `.env` value |
+| API can't reach postgres | Postgres healthcheck not passed yet — wait 10s and retry |
+| Admin shows blank page | `docker-compose logs admin` — usually a build error |
+| Login blocked in browser | `curl -s http://localhost:7000 \| grep api` — must show your domain, not `localhost` |
+| API returns 503 | `curl http://localhost:8000/health` — db connection failed |
 
-- `api/db.sqlite3`
+---
 
-For stronger durability, use scheduled snapshots or tools such as Litestream-style replication workflows.
+## Step 1 — Server Requirements
 
-## When SQLite Stops Being a Good Fit
+- Ubuntu 20.04+ or Debian 11+
+- Docker Engine 24+
+- Docker Compose v2 (`docker compose`) or v1 (`docker-compose`)
+- Nginx
+- Certbot
 
-Consider moving off SQLite if you need:
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
 
-- high write concurrency
-- horizontal scaling across multiple API instances
-- managed database tooling and observability
-- more advanced SQL and indexing patterns
+# Install Nginx + Certbot
+apt install -y nginx certbot python3-certbot-nginx
+```
 
-## PostgreSQL Today
+---
 
-PostgreSQL is possible, but it is not yet a fully abstracted backend option in this repo.
+## Step 2 — Clone the Repository
 
-The current ORM and database layer are still coupled to SQLite details such as:
+```bash
+cd /www/wwwroot
+git clone https://github.com/<your-org>/NextAdmin.git
+cd NextAdmin
+```
 
-- `better-sqlite3`
-- SQLite-style placeholders
-- SQLite insert semantics
-- manual boolean conversion logic in the model layer
+---
 
-That means a true PostgreSQL migration is an engineering task, not an environment-variable switch.
+## Step 3 — Create `.env`
 
-## What You Can Configure Today
+This is the **only file you edit on the server**.
 
-Today, the only built-in database runtime configuration is the SQLite file path:
+```bash
+cp .env.example .env
+nano .env
+```
 
 ```env
-DB_PATH=./db.sqlite3
+# Domains
+API_DOMAIN=api.yourdomain.com
+ADMIN_DOMAIN=admin.yourdomain.com
+
+# Ports — change only if these are already in use on your server
+API_PORT=8000
+ADMIN_PORT=7000
+
+# Database
+DB_NAME=nextadmin
+DB_USER=nextadmin
+DB_PASSWORD=use-a-long-random-password
+
+# Security — generate with: openssl rand -hex 32
+SECRET_KEY=generate-32-char-random-string
+JWT_SECRET=generate-another-32-char-random-string
+JWT_EXPIRES_IN=1d
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Email (Gmail: enable 2FA and use an App Password)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_FROM=noreply@yourdomain.com
 ```
 
-That setting is read by the SQLite database manager in `api/src/core/database.ts`.
+`docker-compose.yml` builds `DATABASE_URL`, `CORS_ORIGIN`, and `NEXT_PUBLIC_API_URL` from these values automatically — you never set those manually.
 
-There is currently no supported production configuration like:
+---
 
-```env
-DATABASE_URL=postgres://...
-DB_CLIENT=postgres
+## Step 4 — Build and Start
+
+```bash
+docker-compose build
+docker-compose up -d
 ```
 
-Those variables would not switch the runtime to PostgreSQL in the current codebase.
+Verify all three containers are running:
 
-## If a User Wants PostgreSQL in Production
-
-The honest answer is:
-
-- there is no documented PostgreSQL production config because PostgreSQL is not yet a first-class runtime backend here
-- a user cannot enable PostgreSQL only by changing environment variables
-- the framework code must be adapted first
-
-The main SQLite-specific areas today are:
-
-- `api/src/core/database.ts`
-- `api/src/core/model.ts`
-- schema creation behavior in the model layer
-- manual migration guidance that currently assumes SQLite-first workflows
-
-If you want to support PostgreSQL properly, the framework should first gain:
-
-1. a PostgreSQL connection layer
-2. a database selection mechanism such as `DB_CLIENT=sqlite|postgres`
-3. a PostgreSQL connection config such as `DATABASE_URL=postgres://...`
-4. SQL generation that works across both engines
-5. insert/update behavior that does not rely on SQLite-only semantics
-6. a clearer migration story for non-SQLite deployments
-
-Only after that work would a production PostgreSQL configuration section make sense.
-
-## Example of a Future PostgreSQL Config
-
-The following is an example of what a future PostgreSQL setup could look like after framework support is added:
-
-```env
-DB_CLIENT=postgres
-DATABASE_URL=postgres://app_user:app_password@db.example.com:5432/NextAdmin
+```bash
+docker-compose ps
 ```
 
-That example is illustrative only. It is not supported by the current implementation.
-
-## Two Practical Paths to PostgreSQL
-
-### Path 1: Adapt the Existing ORM
-
-This keeps the current programming model but requires framework work.
-
-You would need to:
-
-1. replace the SQLite connection layer
-2. update SQL placeholder generation
-3. update insert handling to return ids properly
-4. remove SQLite-specific assumptions from the model layer
-
-This is the path to take if you want to preserve the current framework shape.
-
-### Path 2: Replace the Data Layer
-
-For heavier scaling, it may be more pragmatic to replace the custom ORM with a more mature tool such as Prisma or TypeORM.
-
-This is the path to take if:
-
-- Postgres is a hard requirement
-- you want richer query capabilities
-- you want a broader ecosystem around migrations and schema management
-
-## Production Environment Variables
-
-At minimum, harden these values:
-
-```env
-NODE_ENV=production
-CORS_ORIGIN=https://admin.example.com,https://example.com
-JWT_SECRET=replace-with-a-strong-random-value
-SECRET_KEY=replace-with-a-strong-random-value
+Expected:
+```
+Name                    Command                 State    Ports
+-----------------------------------------------------------------------
+nextadmin-postgres-1    docker-entrypoint.sh …  Up       5432/tcp
+nextadmin-api-1         node dist/index.js       Up       0.0.0.0:8000->8000/tcp
+nextadmin-admin-1       next start -p 3000       Up       0.0.0.0:7000->3000/tcp
 ```
 
-Also set the admin's API URL correctly in production:
+```bash
+# API health check — should return {"status":"ok"}
+curl http://localhost:8000/health
 
-```env
-NEXT_PUBLIC_API_URL=https://api.example.com
+# Tail logs
+docker-compose logs -f api
+docker-compose logs -f admin
 ```
 
-## Deploying the Admin App
+---
 
-The admin app is a standard Next.js project.
+## Step 5 — Create the First Admin User
 
-You can deploy it to:
+Run this once after the first deploy:
 
-- Vercel
-- Netlify
-- your own VPS
+```bash
+docker-compose exec api node dist/cli/create_user.js
+```
 
-The key requirement is that it can reach the API and uses the correct `NEXT_PUBLIC_API_URL`.
+At the prompts:
+```
+Username: admin
+Email:    admin@yourdomain.com
+Password: <secure password>
+Role:     admin
+```
 
-## Honest Current State
+The user persists in PostgreSQL across restarts.
 
-NextAdmin is production-capable today for teams that are comfortable with:
+---
 
-- a SQLite-first backend
-- a custom ORM with explicit boundaries
-- a separate admin app
+## Step 6 — Nginx Configuration
 
-If you want Django-scale ORM maturity or first-class multi-database support, that is still future work rather than current reality.
+Create one config file per subdomain.
+
+### `/etc/nginx/sites-available/api.yourdomain.com`
+
+```nginx
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name api.yourdomain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/api.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:8000;   # matches API_PORT in .env
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### `/etc/nginx/sites-available/admin.yourdomain.com`
+
+```nginx
+server {
+    listen 80;
+    server_name admin.yourdomain.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name admin.yourdomain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/admin.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/admin.yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:7000;   # matches ADMIN_PORT in .env
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Enable and reload:
+
+```bash
+ln -s /etc/nginx/sites-available/api.yourdomain.com   /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/admin.yourdomain.com /etc/nginx/sites-enabled/
+
+nginx -t        # verify syntax
+nginx -s reload
+```
+
+> **BaoTa / aaPanel:** Create each subdomain through the panel UI, then edit the generated `.conf` to add the `proxy_pass` block. Reload with `/www/server/nginx/sbin/nginx -s reload`.
+
+---
+
+## Step 7 — SSL Certificates
+
+```bash
+certbot --nginx -d api.yourdomain.com
+certbot --nginx -d admin.yourdomain.com
+```
+
+Test auto-renewal:
+```bash
+certbot renew --dry-run
+```
+
+---
+
+## Updating the Application
+
+### API only
+
+```bash
+git pull
+docker-compose build api
+docker-compose up -d --no-deps api
+```
+
+### Admin panel (any JS or domain change)
+
+The admin JS bundle has the API URL baked in at build time — `--no-cache` is required:
+
+```bash
+git pull
+docker-compose build --no-cache admin
+docker-compose up -d --no-deps admin
+
+# Clear Nginx proxy cache so browsers get the new HTML
+rm -rf /www/server/nginx/proxy_cache_dir/*
+/www/server/nginx/sbin/nginx -s reload
+```
+
+### Full redeploy
+
+```bash
+git pull
+docker-compose build --no-cache
+docker-compose down
+docker-compose up -d
+
+rm -rf /www/server/nginx/proxy_cache_dir/*
+/www/server/nginx/sbin/nginx -s reload
+```
+
+---
+
+## Troubleshooting
+
+### Admin login fails — "Mixed Content" error
+
+**Cause:** An `http://` URL was baked into the admin JS bundle; the browser blocks it on an HTTPS page.
+
+**Fix:**
+1. `API_DOMAIN` in `.env` must be the bare domain only — `api.yourdomain.com`, not `https://api.yourdomain.com`. `docker-compose.yml` prepends `https://` automatically.
+2. Rebuild with `--no-cache` and clear Nginx cache:
+```bash
+docker-compose build --no-cache admin
+docker-compose up -d --no-deps admin
+rm -rf /www/server/nginx/proxy_cache_dir/*
+/www/server/nginx/sbin/nginx -s reload
+```
+
+### Boolean columns show `-` in admin (isActive, isStaff, isSuperuser)
+
+**Cause:** PostgreSQL returns column names in lowercase. The ORM normalises them back to camelCase.
+
+**Fix:** Already applied in `api/src/core/model.ts`. Ensure you are on the latest code and rebuild the API.
+
+### `docker-compose up` fails with `'ContainerConfig'` error
+
+**Cause:** docker-compose v1 is incompatible with Docker Engine 25+.
+
+**Fix:** Switch to the v2 plugin (`docker compose` without the hyphen), or remove the stale container manually:
+```bash
+docker rm -f nextadmin-admin-1
+docker-compose up -d admin
+```
+
+### Nginx serves stale JS after a rebuild
+
+**Cause:** Nginx proxy cache holds the old HTML which references old JS chunk filenames.
+
+**Fix:**
+```bash
+rm -rf /www/server/nginx/proxy_cache_dir/*
+/www/server/nginx/sbin/nginx -s reload
+```

@@ -1,5 +1,6 @@
 import DatabaseManager from './database';
 import { Field, AutoField } from './fields';
+import settings from '../config/settings';
 
 export interface QueryOptions {
   limit?: number;
@@ -82,7 +83,7 @@ export class QuerySet<T> {
 
     return results.map(row => {
       const instance = new (this.model as any)();
-      Object.assign(instance, row);
+      Object.assign(instance, (this.model as typeof Model).normaliseRow(row));
       return instance as T;
     });
   }
@@ -145,6 +146,28 @@ export class Model {
     }
 
     return fields;
+  }
+
+  /**
+   * Normalise a raw DB row to camelCase field names.
+   * PostgreSQL lowercases all unquoted identifiers, so a row from PG has
+   * keys like `isactive` instead of `isActive`. This method maps each
+   * camelCase field name from the model definition back to the correct key,
+   * trying the camelCase name first (SQLite) and then the all-lowercase
+   * variant (PostgreSQL).
+   */
+  static normaliseRow(row: Record<string, any>): Record<string, any> {
+    const fields = this.getFields();
+    const normalised: Record<string, any> = {};
+    for (const fieldName of Object.keys(fields)) {
+      const lcName = fieldName.toLowerCase();
+      if (fieldName in row) {
+        normalised[fieldName] = row[fieldName];
+      } else if (lcName in row) {
+        normalised[fieldName] = row[lcName];
+      }
+    }
+    return normalised;
   }
 
   static async createTable(): Promise<void> {
@@ -232,8 +255,11 @@ export class Model {
         value = typeof field.options.default === 'function' ? field.options.default() : field.options.default;
       }
 
-      // SQLite stores booleans as 0/1; PostgreSQL accepts this too
-      data[fieldName] = typeof value === 'boolean' ? (value ? 1 : 0) : value;
+      // better-sqlite3 rejects JS booleans; convert to 0/1 for SQLite only.
+      // PostgreSQL's BOOLEAN column requires actual JS booleans via the pg driver.
+      data[fieldName] = (settings.database.engine === 'sqlite' && typeof value === 'boolean')
+        ? (value ? 1 : 0)
+        : value;
     }
 
     if (this.id) {
