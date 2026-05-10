@@ -201,11 +201,10 @@ The user persists in PostgreSQL across restarts.
 
 ## Step 6 — Nginx Configuration
 
-Create one config file per subdomain.
+### API subdomain
 
-### `/etc/nginx/sites-available/api.yourdomain.com`
-
-```nginx
+```bash
+cat > /etc/nginx/sites-available/api.yourdomain.com << 'EOF'
 server {
     listen 80;
     server_name api.yourdomain.com;
@@ -220,7 +219,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/api.yourdomain.com/privkey.pem;
 
     location / {
-        proxy_pass         http://127.0.0.1:8000;   # matches API_PORT in .env
+        proxy_pass         http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
@@ -228,11 +227,13 @@ server {
         proxy_set_header   X-Forwarded-Proto $scheme;
     }
 }
+EOF
 ```
 
-### `/etc/nginx/sites-available/admin.yourdomain.com`
+### Admin subdomain
 
-```nginx
+```bash
+cat > /etc/nginx/sites-available/admin.yourdomain.com << 'EOF'
 server {
     listen 80;
     server_name admin.yourdomain.com;
@@ -247,7 +248,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/admin.yourdomain.com/privkey.pem;
 
     location / {
-        proxy_pass         http://127.0.0.1:7000;   # matches ADMIN_PORT in .env
+        proxy_pass         http://127.0.0.1:7000;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
@@ -255,9 +256,10 @@ server {
         proxy_set_header   X-Forwarded-Proto $scheme;
     }
 }
+EOF
 ```
 
-Enable and reload:
+### Enable and reload
 
 ```bash
 ln -s /etc/nginx/sites-available/api.yourdomain.com   /etc/nginx/sites-enabled/
