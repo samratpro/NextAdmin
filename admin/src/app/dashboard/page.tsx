@@ -121,7 +121,7 @@ export default function DashboardPage() {
                               </dt>
                               <dd className="mt-1">
                                 <a
-                                  href="http://localhost:8000/docs"
+                                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/docs`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-indigo-600 hover:text-indigo-500"
@@ -243,7 +243,7 @@ export default function DashboardPage() {
                       </div>
                         <div className="mt-5">
                           <a
-                            href="http://localhost:8000/docs"
+                            href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/docs`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
