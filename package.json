@@ -1,7 +1,7 @@
 {
-  "name": "django-like-framework",
+  "name": "next-admin-framework",
   "version": "1.0.0",
-  "description": "Django-like full-stack framework with Node.js, Fastify, and Next.js",
+  "description": "NextAdmin full-stack framework with Node.js, Fastify, and Next.js",
   "private": true,
   "engines": {
     "node": "20.x"
