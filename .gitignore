@@ -10,6 +10,9 @@ dist/
 .next/
 */.next/
 **/.next/
+.next2/
+*/.next2/
+**/.next2/
 out/
 
 # Database
