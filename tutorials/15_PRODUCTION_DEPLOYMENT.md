@@ -42,6 +42,7 @@ NextAdmin/
 ## Quick Deploy Checklist
 
 ```bash
+# 0. Map Domain via Cloudflare or Custom DNS for VPS IP connection
 # 1. Clone
 cd /www/wwwroot
 git clone https://github.com/<your-org>/NextAdmin.git
@@ -78,6 +79,28 @@ bash setup-nginx.sh
 
 ---
 
+## Step 0 - Setup Domain
+```
+# Configure Name Server
+- Login Domain Provider Website or Cloudflare
+- Navigate to Manage DNS
+```
+Add Following Records:
+| Type  | Host/Name   | Value                              |
+|-------|-------------|------------------------------------|
+| A     | api         | Your Remote Server IP              |
+| A     | www.api     | Your Remote Server IP              |
+| AAAA  | api         | Your Remote Server IPv6 (optional) |
+| AAAA  | www.api     | Your Remote Server IPv6 (optional) |
+| A     | admin       | Your Remote Server IP              |
+| A     | www.admin   | Your Remote Server IP              |
+| AAAA  | admin       | Your Remote Server IPv6 (optional) |
+| AAAA  | www.admin   | Your Remote Server IPv6 (optional) |
+| A     | @           | Your Remote Server IP              |
+| A     | www         | Your Remote Server IP              |
+| AAAA  | @           | Your Remote Server IPv6 (optional) |
+| AAAA  | www         | Your Remote Server IPv6 (optional) |
+
 ## Step 1 — Server Requirements
 
 - Ubuntu 20.04+ or Debian 11+
@@ -99,7 +122,7 @@ apt install -y nginx certbot python3-certbot-nginx
 ## Step 2 — Clone the Repository
 
 ```bash
-cd /www/wwwroot
+cd /www/wwwroot  # or specific location
 git clone https://github.com/<your-org>/NextAdmin.git
 cd NextAdmin
 ```
