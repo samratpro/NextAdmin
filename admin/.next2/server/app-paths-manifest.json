@@ -1,7 +1,0 @@
-{
-  "/dashboard/models/[modelName]/page": "app/dashboard/models/[modelName]/page.js",
-  "/dashboard/backup/page": "app/dashboard/backup/page.js",
-  "/dashboard/seo/page": "app/dashboard/seo/page.js",
-  "/dashboard/models/page": "app/dashboard/models/page.js",
-  "/dashboard/page": "app/dashboard/page.js"
-}
