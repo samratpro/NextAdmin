@@ -3,16 +3,16 @@
 NextAdmin comes with a simple Blog system (**Categories** and **Blog Posts**) by default to help you get started quickly. If you don't need this feature, you can remove it in a few simple steps.
 
 ## Step 1: Remove API registration
-Open [api/src/index.ts](file:///c:/Users/samra/Desktop/My%20Dev/NextAdmin/api/src/index.ts) and remove the following sections:
+Open `api/src/index.ts` and remove the following sections:
 
-### 1. Remove Imports (Lines ~36-37)
+### 1. Remove Imports (Lines ~39-40)
 ```typescript
-// Remove these
+// Remove these two lines
 import blogRoutes from './apps/blog/routes';
 import { Category, BlogPost } from './apps/blog/models';
 ```
 
-### 2. Remove Table Creation (Line ~63)
+### 2. Remove Table Creation (Line ~66)
 Modify the loop in `initializeDatabase` to remove `Category` and `BlogPost`:
 ```typescript
 // Before
@@ -26,7 +26,7 @@ for (const model of coreModels) {
 }
 ```
 
-### 3. Remove Route Registration (Line ~165)
+### 3. Remove Route Registration (Line ~188)
 ```typescript
 // Remove this line
 await fastify.register(blogRoutes);

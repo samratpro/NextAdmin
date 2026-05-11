@@ -1,19 +1,23 @@
 import fs from 'fs';
 import path from 'path';
 import logger from '../../core/logger';
+import { ModelRegistry } from '../../core/ModelRegistry';
 
 export interface PageSeo {
   pageSlug: string;
   metaTitle: string;
   metaDescription: string;
   canonicalUrl: string;
+  ogType: string;        // 'website' | 'article' | 'product'
   ogTitle: string;
   ogDescription: string;
   ogImage: string;       // stored as relative URL e.g. /uploads/seo/about/og-image.jpg
+  twitterCardType: string; // 'summary_large_image' | 'summary'
   twitterTitle: string;
   twitterDescription: string;
   twitterImage: string;  // stored as relative URL e.g. /uploads/seo/about/twitter-image.jpg
   noIndex: boolean;
+  noFollow: boolean;
   schema: string;        // JSON-LD structured data
 }
 
@@ -22,14 +26,28 @@ export interface GlobalSeoSettings {
   footerScripts: string;
 }
 
+export interface ModelUrlPattern {
+  modelName: string;   // e.g. 'BlogPost'
+  slugField: string;   // field whose value becomes the URL segment, e.g. 'slug'
+  urlPrefix: string;   // e.g. '/blog'  →  final URL: /blog/{slug}
+}
+
 export interface SitemapConfig {
   enabled: boolean;
   frequency: 'daily' | 'weekly' | 'monthly';
   priority: number;
   excludeSlugs: string[];
-  includedModels: string[];      // model names to include (e.g. ['BlogPost', 'Category'])
   staticPaths: string[];         // manually added static URLs
   maxUrlsPerSitemap: number;     // max URLs per sitemap file (0 = unlimited)
+  modelSlugs: ModelUrlPattern[]; // database model records to include
+}
+
+export interface RedirectRule {
+  id: string;
+  from: string;
+  to: string;      // empty string when type is 410
+  type: 301 | 410;
+  createdAt: string;
 }
 
 const SEO_DATA_DIR = path.join(__dirname, '../seo_data');
@@ -140,14 +158,13 @@ class SeoService {
         frequency: 'daily',
         priority: 0.8,
         excludeSlugs: [],
-        includedModels: [],
         staticPaths: [],
         maxUrlsPerSitemap: 0,
+        modelSlugs: [],
       };
     }
     const saved = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    // back-compat defaults for new fields
-    return { excludeSlugs: [], includedModels: [], staticPaths: [], maxUrlsPerSitemap: 0, ...saved };
+    return { excludeSlugs: [], staticPaths: [], maxUrlsPerSitemap: 0, modelSlugs: [], ...saved };
   }
 
   updateSitemapConfig(config: SitemapConfig) {
@@ -155,16 +172,63 @@ class SeoService {
     fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
   }
 
-  getSitemapData(): string[] {
+  // --- Redirects ---
+  private redirectsFilePath(): string {
+    return path.join(SEO_DATA_DIR, 'redirects.json');
+  }
+
+  getRedirects(): RedirectRule[] {
+    const filePath = this.redirectsFilePath();
+    if (!fs.existsSync(filePath)) return [];
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  }
+
+  addRedirect(rule: Omit<RedirectRule, 'id' | 'createdAt'>): RedirectRule {
+    const rules = this.getRedirects();
+    const newRule: RedirectRule = {
+      ...rule,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    rules.push(newRule);
+    fs.writeFileSync(this.redirectsFilePath(), JSON.stringify(rules, null, 2), 'utf-8');
+    return newRule;
+  }
+
+  deleteRedirect(id: string): boolean {
+    const rules = this.getRedirects();
+    const next = rules.filter(r => r.id !== id);
+    if (next.length === rules.length) return false;
+    fs.writeFileSync(this.redirectsFilePath(), JSON.stringify(next, null, 2), 'utf-8');
+    return true;
+  }
+
+  async getSitemapData(): Promise<string[]> {
     const config = this.getSitemapConfig();
     if (!config.enabled) return [];
 
     const urls: string[] = [...this.listAllPageSeoSlugs()];
-    // static paths
     urls.push(...(config.staticPaths || []).filter(Boolean));
 
+    for (const pattern of (config.modelSlugs || [])) {
+      if (!pattern.modelName || !pattern.slugField) continue;
+      const meta = ModelRegistry.getModel(pattern.modelName);
+      if (!meta) continue;
+      try {
+        const records = await (meta.model as any).objects.all().all();
+        const prefix = (pattern.urlPrefix || '').replace(/\/$/, '');
+        for (const record of records) {
+          const slugVal = record[pattern.slugField];
+          if (slugVal) urls.push(`${prefix}/${slugVal}`);
+        }
+      } catch (err) {
+        logger.warn({ modelName: pattern.modelName, err }, 'SEO sitemap: failed to fetch model records');
+      }
+    }
+
     const normalizedExcludes = config.excludeSlugs.map(s => s.replace(/^\//, ''));
-    return [...new Set(urls)].filter(url => !normalizedExcludes.includes(url.replace(/^\//, '')));
+    const result = [...new Set(urls)].filter(url => !normalizedExcludes.includes(url.replace(/^\//, '')));
+    return config.maxUrlsPerSitemap > 0 ? result.slice(0, config.maxUrlsPerSitemap) : result;
   }
 }
 

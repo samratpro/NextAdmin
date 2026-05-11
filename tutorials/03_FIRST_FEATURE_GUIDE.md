@@ -81,11 +81,10 @@ export default async function blogRoutes(fastify: FastifyInstance) {
       description: 'List published blog posts'
     }
   }, async () => {
-    const posts = BlogPost.objects.all<BlogPost>()
+    const all = await BlogPost.objects.all<BlogPost>()
       .orderBy('id', 'DESC')
-      .all()
-      .filter((post: any) => post.published);
-
+      .all();
+    const posts = all.filter((post: any) => post.published);
     return { data: posts };
   });
 
@@ -95,7 +94,7 @@ export default async function blogRoutes(fastify: FastifyInstance) {
       description: 'Create a blog post'
     }
   }, async (request, reply) => {
-    const post = BlogPost.objects.create(request.body as any);
+    const post = await BlogPost.objects.create(request.body as any);
     return reply.code(201).send({ data: post });
   });
 }

@@ -273,6 +273,18 @@ class ApiClient {
     ).then(res => res.data);
   }
 
+  async listRedirects() {
+    return this.get('/api/admin/seo/redirects');
+  }
+
+  async addRedirect(data: { from: string; to: string; type: 301 | 410 }) {
+    return this.post('/api/admin/seo/redirects', data);
+  }
+
+  async deleteRedirect(id: string) {
+    return this.delete(`/api/admin/seo/redirects/${encodeURIComponent(id)}`);
+  }
+
   async createSeoBackup(toDrive: boolean = false) {
     const response = await this.client.post(`/api/admin/seo/backup?drive=${toDrive}`);
     return response.data;

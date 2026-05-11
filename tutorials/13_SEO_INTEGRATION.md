@@ -1,63 +1,73 @@
-# Headless SEO Integration Guide
+# SEO Integration Guide
 
-NextAdmin provides a **file-based, slug-scoped SEO management system**. The Admin stores all SEO data on the server; your frontend fetches it at render time and injects it into the `<head>`. No database queries are needed on the frontend — everything is served as flat JSON files.
+NextAdmin provides a complete, file-based SEO management system. The Admin (port 7000) stores all configuration on the server; your public Next.js site (port 3000) fetches it at render time. No extra database queries on the frontend — everything is served as flat JSON with HTTP caching.
 
 ---
 
 ## How Data is Stored
 
-Each page slug gets its own folder. Images are stored with **predictable filenames** so your frontend can construct URLs without storing explicit paths.
-
 ```
 api/
 ├── seo_data/
-│   ├── global_settings.json       ← header/footer scripts
-│   ├── sitemap_config.json        ← sitemap rules & model selection
+│   ├── global_settings.json       ← header/footer script snippets
+│   ├── sitemap_config.json        ← sitemap rules, model URL patterns
+│   ├── redirects.json             ← 301 redirect & 410 Gone rules
 │   └── pages/
 │       ├── home/
 │       │   └── meta.json          ← SEO data for "/"
 │       ├── about/
 │       │   └── meta.json          ← SEO data for "/about"
-│       └── blog__my-post/         ← "/" in slug becomes "__"
+│       └── services__web-design/  ← "/" in slug encoded as "__"
 │           └── meta.json
 └── public/
     └── uploads/seo/
         ├── about/
-        │   ├── og-image.jpg       ← always this name
+        │   ├── og-image.jpg
         │   └── twitter-image.png
         └── home/
             └── og-image.jpg
 ```
 
-### Slug Naming Convention
+### Slug → Folder Mapping
 
-| Frontend URL     | Slug in Admin  | Folder name        |
-|-----------------|----------------|--------------------|
-| `/`             | `home`         | `pages/home/`      |
-| `/about`        | `about`        | `pages/about/`     |
-| `/services`     | `services`     | `pages/services/`  |
-| `/blog/my-post` | `blog/my-post` | `pages/blog__my-post/` |
+| Frontend URL           | Admin slug             | Stored folder                |
+|------------------------|------------------------|------------------------------|
+| `/`                    | `home`                 | `pages/home/`                |
+| `/about`               | `about`                | `pages/about/`               |
+| `/services`            | `services`             | `pages/services/`            |
+| `/services/web-design` | `services/web-design`  | `pages/services__web-design/`|
 
 ---
 
 ## Public API Endpoints
 
-All endpoints below are **public** (no authentication required). Use them in your frontend.
+All endpoints are unauthenticated — call them directly from your Next.js site.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/seo/head?slug=about` | Page-specific SEO metadata |
+| `GET /api/seo/head?slug=about` | Page meta (title, OG, Twitter, canonical, schema, noIndex, noFollow) |
 | `GET /api/seo/scripts` | Global header/footer scripts |
-| `GET /api/seo/robots-text` | Robots.txt content |
-| `GET /api/seo/sitemap-data` | List of URLs for sitemap |
-| `GET /uploads/seo/{slug}/og-image.{ext}` | OG image (served as static file) |
-| `GET /uploads/seo/{slug}/twitter-image.{ext}` | Twitter image |
+| `GET /api/seo/robots-text` | Raw robots.txt content |
+| `GET /api/seo/sitemap-data` | URL list for XML sitemap (static pages + model records) |
+| `GET /api/seo/redirects` | All 301 and 410 rules |
+| `GET /uploads/seo/{slug}/og-image.{ext}` | OG image static file |
+| `GET /uploads/seo/{slug}/twitter-image.{ext}` | Twitter image static file |
 
 ---
 
-## 1. Reusable SEO Helper
+## Environment Variables
 
-Create this once and use it across all pages:
+```env
+# .env.local  (your public Next.js site, port 3000)
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
+```
+
+---
+
+## 1. Shared SEO Helper
+
+Create once, import everywhere:
 
 ```ts
 // lib/seo.ts
@@ -66,7 +76,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 export async function fetchPageSeo(slug: string) {
   try {
     const res = await fetch(`${API}/api/seo/head?slug=${encodeURIComponent(slug)}`, {
-      next: { revalidate: 3600 }, // ISR — re-fetch every hour
+      next: { revalidate: 3600 },
     });
     return res.ok ? res.json() : null;
   } catch {
@@ -74,27 +84,20 @@ export async function fetchPageSeo(slug: string) {
   }
 }
 
-/** Build the og/twitter image URL from a stored relative path */
+/** Convert a stored relative path to a full API URL */
 export function seoImageUrl(relativePath: string | undefined): string | undefined {
   if (!relativePath) return undefined;
   return `${API}${relativePath}`;
-}
-
-/**
- * Construct predictable image URLs directly from slug (no stored path needed).
- * Falls back to stored ogImage if present.
- */
-export function slugImageUrl(slug: string, type: 'og' | 'twitter', ext = 'jpg'): string {
-  const safeSlug = slug.replace(/^\//, '').replace(/\//g, '__') || 'home';
-  return `${API}/uploads/seo/${safeSlug}/${type}-image.${ext}`;
 }
 ```
 
 ---
 
-## 2. Static Page SEO (generateMetadata)
+## 2. Static Page SEO
 
-The primary use case for this system is **Static & Landing pages** (e.g., Home, About, Services). Add `generateMetadata` to each page. The slug corresponds to the URL path.
+For pages like Home, About, Services — where the URL is fixed, not driven by a database record.
+
+**Admin:** Go to **SEO Management → Page SEO → Add New Page** and enter the slug.
 
 ```tsx
 // app/about/page.tsx
@@ -102,21 +105,28 @@ import type { Metadata } from 'next';
 import { fetchPageSeo, seoImageUrl } from '@/lib/seo';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const seo = await fetchPageSeo('about'); // priority for static pages
-  if (!seo?.metaTitle) return { title: 'About Us' };
+  const seo = await fetchPageSeo('about');
+
+  if (!seo?.metaTitle) return { title: 'About Us' }; // fallback
 
   return {
     title: seo.metaTitle,
     description: seo.metaDescription,
-    robots: seo.noIndex ? 'noindex,nofollow' : 'index,follow',
-    alternates: { canonical: seo.canonicalUrl || undefined },
+    robots: [
+      seo.noIndex  ? 'noindex'  : 'index',
+      seo.noFollow ? 'nofollow' : 'follow',
+    ].join(','),
+    alternates: {
+      canonical: seo.canonicalUrl || undefined, // full URL, e.g. https://example.com/about
+    },
     openGraph: {
+      type: seo.ogType || 'website',
       title: seo.ogTitle || seo.metaTitle,
       description: seo.ogDescription || seo.metaDescription,
       images: seo.ogImage ? [seoImageUrl(seo.ogImage)!] : [],
     },
     twitter: {
-      card: 'summary_large_image',
+      card: seo.twitterCardType || 'summary_large_image',
       title: seo.twitterTitle || seo.metaTitle,
       description: seo.twitterDescription || seo.metaDescription,
       images: seo.twitterImage ? [seoImageUrl(seo.twitterImage)!] : [],
@@ -124,11 +134,22 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** 2.1 Structured Data (Schema) **/
-export async function JsonLdSchema({ slug }: { slug: string }) {
+export default function AboutPage() {
+  return <main>{/* page content */}</main>;
+}
+```
+
+### 2.1 JSON-LD Structured Data
+
+The Admin's **Schema (JSON-LD)** field lets you paste structured data per page. Inject it as a script tag in the page component:
+
+```tsx
+// app/about/page.tsx
+import { fetchPageSeo } from '@/lib/seo';
+
+async function JsonLd({ slug }: { slug: string }) {
   const seo = await fetchPageSeo(slug);
   if (!seo?.schema) return null;
-
   return (
     <script
       type="application/ld+json"
@@ -140,29 +161,141 @@ export async function JsonLdSchema({ slug }: { slug: string }) {
 export default function AboutPage() {
   return (
     <main>
-      <JsonLdSchema slug="about" />
-      {/* ... page content ... */}
+      <JsonLd slug="about" />
+      {/* page content */}
     </main>
   );
 }
 ```
 
+### 2.2 Field Fallback Reference
+
+| Admin field left blank | Fallback to use |
+|---|---|
+| `ogTitle` | `metaTitle` |
+| `ogDescription` | `metaDescription` |
+| `ogImage` | omit `images` array |
+| `twitterTitle` | `metaTitle` |
+| `twitterDescription` | `metaDescription` |
+| `twitterImage` | omit `images` array |
+| `canonicalUrl` | omit `alternates.canonical` |
+
 ---
 
-## 3. Handling Dynamic Entities (Posts/Products)
+## 3. Blog Post SEO (Dynamic / DB-driven)
 
-For high-volume dynamic content like **Blog Posts** or **Products**, it is usually better to handle SEO fields directly within your Database Model (e.g., adding `metaTitle` to your Post schema).
+For database-driven content like blog posts, the SEO fields (`metaTitle`, `metaDescription`, `schema`) are stored directly on the model. The blog API route auto-generates the full `seo` object from the post's own fields.
 
-**Only use this Admin SEO system for:**
-- One-off landing pages (Home, Contact, FAQ).
-- Marketing pages that need frequent adjustment without code changes.
-- Global scripts and robots.txt.
+**No Admin → SEO Management config needed for individual posts** — the data comes from the database record itself.
+
+```tsx
+// app/blog/[slug]/page.tsx
+import type { Metadata } from 'next';
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+async function getPost(slug: string) {
+  const res = await fetch(`${API}/api/posts/${slug}`, { next: { revalidate: 3600 } });
+  return res.ok ? res.json() : null;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const result = await getPost(params.slug);
+  const post = result?.data;
+  const seo  = post?.seo;
+
+  if (!post) return { title: 'Post Not Found' };
+
+  return {
+    title: post.metaTitle || post.title,
+    description: post.metaDescription || post.excerpt || '',
+    alternates: {
+      canonical: seo?.canonicalUrl,
+    },
+    openGraph: {
+      type: 'article',
+      title: seo?.ogTitle || post.metaTitle || post.title,
+      description: seo?.ogDescription || post.metaDescription || '',
+      images: seo?.ogImage ? [`${API}${seo.ogImage}`] : [],
+      publishedTime: post.publishedAt,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: seo?.twitterTitle || post.metaTitle || post.title,
+      description: seo?.twitterDescription || post.metaDescription || '',
+      images: seo?.twitterImage ? [`${API}${seo.twitterImage}`] : [],
+    },
+  };
+}
+
+export default async function BlogPostPage({ params }: { params: { slug: string } }) {
+  const result = await getPost(params.slug);
+  const post   = result?.data;
+
+  if (!post) return <div>Post not found</div>;
+
+  return (
+    <article>
+      {/* Inject JSON-LD schema if the author added one in Admin */}
+      {post.schema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: post.schema }}
+        />
+      )}
+      <h1>{post.title}</h1>
+      {/* render post content */}
+    </article>
+  );
+}
+```
+
+### What the blog API returns
+
+The `GET /api/posts/:id` and `GET /api/posts` (single post) responses include a computed `seo` object:
+
+```json
+{
+  "data": {
+    "id": 1,
+    "title": "My Post",
+    "slug": "my-post",
+    "metaTitle": "Custom SEO Title",
+    "metaDescription": "Custom description",
+    "schema": "{ \"@context\": \"https://schema.org\", ... }",
+    "seo": {
+      "canonicalUrl": "https://yourdomain.com/blog/my-post",
+      "ogTitle": "Custom SEO Title",
+      "ogDescription": "Custom description",
+      "ogImage": "/uploads/...",
+      "twitterTitle": "Custom SEO Title",
+      "twitterDescription": "Custom description",
+      "twitterImage": "/uploads/..."
+    }
+  }
+}
+```
+
+`metaTitle` and `metaDescription` are set in **Admin → Content → Blog Posts**. The `seo` fields auto-fall back to `title` and `excerpt` if left blank.
+
+### Adding `schema` to the Blog Post form
+
+The Admin model editor renders a dark code editor for any field named `schema`. Add it to your `BlogPost` model and it appears automatically:
+
+```ts
+// api/src/apps/blog/models.ts
+schema = new TextField({ nullable: true });
+```
 
 ---
 
-## 3. Global Scripts (Layout)
+## 4. Global Scripts
 
-Inject verification codes, analytics tags, and other global scripts managed from Admin → SEO → Global Config.
+Inject analytics, tag managers, and verification codes site-wide. Managed from **Admin → SEO Management → Global Scripts**.
 
 ```tsx
 // app/layout.tsx
@@ -184,13 +317,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <head>
         {headerScripts && (
-          <script dangerouslySetInnerHTML={{ __html: headerScripts }} />
+          <div dangerouslySetInnerHTML={{ __html: headerScripts }} />
         )}
       </head>
       <body>
         {children}
         {footerScripts && (
-          <script dangerouslySetInnerHTML={{ __html: footerScripts }} />
+          <div dangerouslySetInnerHTML={{ __html: footerScripts }} />
         )}
       </body>
     </html>
@@ -198,21 +331,75 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
+**Typical use cases:** Google Analytics `<script>`, Google Tag Manager snippet, Search Console meta verification tag, Facebook Pixel.
+
 ---
 
-## 4. XML Sitemap
+## 5. Redirects (301 & 410)
 
-The API returns all configured URLs (configured pages + static paths added in Admin), while respecting the exclusion list.
+Managed from **Admin → SEO Management → Redirects**. Apply them in `middleware.ts` so they run before any page renders — no page component code needed.
+
+```ts
+// middleware.ts  (root of your Next.js project)
+import { NextResponse, type NextRequest } from 'next/server';
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+let rulesCache: { from: string; to: string; type: 301 | 410 }[] = [];
+let cacheLoadedAt = 0;
+const CACHE_TTL_MS = 60_000;
+
+async function getRules() {
+  if (Date.now() - cacheLoadedAt < CACHE_TTL_MS) return rulesCache;
+  try {
+    const res = await fetch(`${API}/api/seo/redirects`);
+    if (res.ok) {
+      rulesCache = await res.json();
+      cacheLoadedAt = Date.now();
+    }
+  } catch { /* keep stale cache on network error */ }
+  return rulesCache;
+}
+
+export async function middleware(request: NextRequest) {
+  const rules    = await getRules();
+  const pathname = request.nextUrl.pathname;
+  const match    = rules.find(r => r.from === pathname);
+
+  if (!match) return NextResponse.next();
+  if (match.type === 301) return NextResponse.redirect(new URL(match.to, request.url), 301);
+  if (match.type === 410) return new NextResponse(null, { status: 410 });
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};
+```
+
+| Rule type | Effect |
+|---|---|
+| **301** | Browser and search engines follow the redirect permanently |
+| **410** | Tells search engines the page is permanently gone — removes it from the index |
+
+Rules are memory-cached for 60 seconds. New rules take effect within one minute without a deploy.
+
+---
+
+## 6. XML Sitemap
+
+Configure from **Admin → SEO Management → XML Sitemap**. The API returns a flat list of URL paths — your `app/sitemap.ts` prepends your domain.
 
 ```ts
 // app/sitemap.ts
 import { MetadataRoute } from 'next';
 
-const API   = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const SITE  = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-domain.com';
+const API  = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:8000';
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-domain.com';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const res = await fetch(`${API}/api/seo/sitemap-data`, { next: { revalidate: 3600 } });
+  const res  = await fetch(`${API}/api/seo/sitemap-data`, { next: { revalidate: 3600 } });
   const urls: string[] = res.ok ? await res.json() : [];
 
   return urls.map(url => ({
@@ -224,85 +411,97 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 }
 ```
 
-> **Admin controls**: Admin → SEO Management → XML Sitemap lets you set frequency, priority, and **Excluded URLs** (to hide specific pages like `/secret` or `/admin` from search engines).
+### What gets included
+
+| Source | How to configure |
+|---|---|
+| Static page SEO slugs | Automatically included when you add a page in **Page SEO** tab |
+| Manual static paths | **Sitemap → Advanced → Static Paths** |
+| Database model records | **Sitemap → Model URL Patterns** (see below) |
+| Excluded URLs | **Sitemap → Advanced → Excluded URLs** |
+
+### Model URL Patterns
+
+To include blog posts, products, or any other model records, add a pattern in **Admin → XML Sitemap → Model URL Patterns**:
+
+| Field | Example | Description |
+|---|---|---|
+| Model | `BlogPost` | The registered model name |
+| Slug field | `slug` | The field whose value becomes the URL segment |
+| URL prefix | `/blog` | Prepended to the slug value |
+
+A `BlogPost` with `slug = "my-post"` and prefix `/blog` produces `/blog/my-post` in the sitemap.
 
 ---
 
-## 5. Robots.txt
+## 7. Robots.txt
 
-Manage your `robots.txt` content directly from the Admin panel.
+Served from **Admin → SEO Management → Robots.txt**. Use a route handler to serve the exact saved content:
 
 ```ts
-// app/robots.ts
-import { MetadataRoute } from 'next';
-
-const API  = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// app/robots.txt/route.ts
+const API  = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:8000';
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-domain.com';
 
-export default async function robots(): Promise<MetadataRoute.Robots> {
+export async function GET() {
   try {
     const res = await fetch(`${API}/api/seo/robots-text`, { next: { revalidate: 3600 } });
     const { content } = await res.json();
-
-    if (content) {
-      // Use the custom content if the admin has edited it
-      // Note: You can parse the content or return standard rules
-      return {
-        rules: { userAgent: '*', allow: '/' },
-        sitemap: `${SITE}/sitemap.xml`,
-      };
-    }
+    if (content) return new Response(content, { headers: { 'Content-Type': 'text/plain' } });
   } catch { /* fallthrough */ }
 
-  return {
-    rules: { userAgent: '*', allow: '/' },
-    sitemap: `${SITE}/sitemap.xml`,
-  };
+  return new Response(
+    `User-agent: *\nAllow: /\nSitemap: ${SITE}/sitemap.xml`,
+    { headers: { 'Content-Type': 'text/plain' } }
+  );
 }
 ```
 
----
+> Do not create `app/robots.ts` alongside this file — they conflict.
 
-## 6. Backup & Restore
+**Default robots.txt to configure in Admin:**
 
-SEO metadata and images are **independent of the main database**. 
-- They are stored in `api/seo_data/` and `api/public/uploads/seo/`.
-- You can create a dedicated SEO Backup (as a `.tar.gz` archive) from **SEO Management > Backup & Restore** or from the central **Backup Dashboard**.
-- Restoring an SEO archive only affects your SEO data and assets, leaving the database untouched.
-
----
-
-## 7. Performance & Static Generation
-
-A common concern is whether dynamic SEO hampers speed compared to "hardcoded" values. 
-
-### Why it's fast:
-1. **ISR (Incremental Static Regeneration)**: By using `{ next: { revalidate: 3600 } }` in your `fetch` calls, Next.js caches the SEO data on the server. The visitor receives a **static HTML file** with the metadata already injected. 
-2. **Backend HTTP Caching**: The API now includes `Cache-Control: public, max-age=3600` headers. This means even if your frontend cache misses, intermediate CDNs (like Vercel or Cloudflare) will serve the SEO data instantly.
-3. **Zero Client-Side Lag**: Metadata is injected on the server, so the browser doesn't need to do any work to "compute" SEO.
-
----
-
-## 8. Instant Load Strategy (Best Practices)
-
-To ensure your pages always load instantly with zero SEO latency, follow this pattern:
-
-### A. The "Single Fetch" Rule
-Avoid calling `fetchPageSeo` multiple times in one render. Next.js deduplicates fetches, but for maximum clarity, fetch the data in a parent Layout or Page and pass it down.
-
-### B. Shared Layout Scripts
-Instead of fetching global scripts in every page, fetch them once in `app/layout.tsx`. This ensures scripts are "baked into" the initial HTML response.
-
-### C. Predictive Prefetching
-Since SEO is usually linked to the URL, you don't need to "wait" for the user to click. Next.js handles prefetching automatically for links, making the transition feel like an instant load.
-
-### D. Revalidation vs. Real-time
-- Use `revalidate: 3600` (1 hour) for 99% of pages.
-- Use `revalidate: 60` (1 minute) only for high-frequency updates.
-- If you need **instant** updates after saving in Admin, you can use a Webhook to trigger a `revalidatePath()` in Next.js.
-
-```env
-# .env.local (frontend)
-NEXT_PUBLIC_API_URL=http://localhost:8000       # API server
-NEXT_PUBLIC_SITE_URL=https://your-domain.com   # Your public domain
 ```
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /api/
+Sitemap: https://your-domain.com/sitemap.xml
+```
+
+---
+
+## 8. Backup & Restore
+
+SEO data is stored independently of the main database — safe to move between environments.
+
+- All data lives in `api/seo_data/` and `api/public/uploads/seo/`
+- Create a `.tar.gz` archive from **Admin → SEO Management → Backup & Restore**
+- Optionally upload directly to Google Drive (configure in **Settings → Backup**)
+- Restoring overwrites only SEO files — database and user accounts are untouched
+
+---
+
+## 9. Performance Reference
+
+| Concern | How it's handled |
+|---|---|
+| Page load speed | `next: { revalidate: 3600 }` — Next.js caches the fetch result for 1 hour |
+| CDN caching | API responds with `Cache-Control: public, max-age=3600` |
+| Redirect latency | Rules memory-cached in `middleware.ts` — zero API calls per request during TTL |
+| Blog post SEO | Fetched alongside post content in a single API call — no extra round trip |
+| Missing config | Always provide hardcoded fallback `title`/`description` so the page is never empty |
+
+---
+
+## 10. Complete File Checklist
+
+| File | Purpose |
+|---|---|
+| `lib/seo.ts` | Shared helper — `fetchPageSeo`, `seoImageUrl` |
+| `app/layout.tsx` | Inject global header/footer scripts |
+| `app/robots.txt/route.ts` | Serve Admin-managed robots.txt |
+| `app/sitemap.ts` | Build XML sitemap from API URL list |
+| `middleware.ts` | Apply 301 redirects and 410 Gone rules |
+| `app/about/page.tsx` | Example static page with `generateMetadata` |
+| `app/blog/[slug]/page.tsx` | Example dynamic page with post SEO + JSON-LD |

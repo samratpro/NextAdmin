@@ -96,11 +96,10 @@ export default async function blogRoutes(fastify: FastifyInstance) {
       description: 'List published blog posts'
     }
   }, async () => {
-    const posts = BlogPost.objects.all<BlogPost>()
+    const all = await BlogPost.objects.all<BlogPost>()
       .orderBy('id', 'DESC')
-      .all()
-      .filter((post: any) => post.published);
-
+      .all();
+    const posts = all.filter((post: any) => post.published);
     return { data: posts };
   });
 
@@ -111,7 +110,7 @@ export default async function blogRoutes(fastify: FastifyInstance) {
     }
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const post = BlogPost.objects.get<BlogPost>({ id: parseInt(id, 10) });
+    const post = await BlogPost.objects.get<BlogPost>({ id: parseInt(id, 10) });
 
     if (!post) {
       return reply.code(404).send({ error: 'Post not found' });

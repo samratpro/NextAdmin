@@ -3,7 +3,7 @@ import multipart from '@fastify/multipart';
 import path from 'path';
 import fs from 'fs';
 import { pipeline } from 'stream/promises';
-import { seoService, PageSeo, GlobalSeoSettings, SitemapConfig } from './service';
+import { seoService, PageSeo, GlobalSeoSettings, SitemapConfig, RedirectRule } from './service';
 import { 
   requireAuth, 
   requireSuperuser, 
@@ -48,7 +48,13 @@ export default async function seoRoutes(fastify: FastifyInstance) {
   // Get sitemap data (list of URLs)
   fastify.get('/api/seo/sitemap-data', async (_request, reply) => {
     reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-    return seoService.getSitemapData();
+    return await seoService.getSitemapData();
+  });
+
+  // Public redirect rules — consumed by the frontend (port 3000)
+  fastify.get('/api/seo/redirects', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    return seoService.getRedirects();
   });
 
 
@@ -134,6 +140,34 @@ export default async function seoRoutes(fastify: FastifyInstance) {
         success: true,
         url: `/uploads/seo/${safeSlug}/${filename}`,
       };
+    }
+  );
+
+  // --- Redirect Rules (Admin) ---
+  fastify.get('/api/admin/seo/redirects', { preHandler: [requirePermission('seo.manage')] }, async () => {
+    return seoService.getRedirects();
+  });
+
+  fastify.post<{ Body: Omit<RedirectRule, 'id' | 'createdAt'> }>(
+    '/api/admin/seo/redirects',
+    { preHandler: [requirePermission('seo.manage')] },
+    async (request, reply) => {
+      const { from, to, type } = request.body;
+      if (!from) return reply.status(400).send({ error: '"from" path is required' });
+      if (type === 301 && !to) return reply.status(400).send({ error: '"to" path is required for 301 redirect' });
+      if (type !== 301 && type !== 410) return reply.status(400).send({ error: 'type must be 301 or 410' });
+      const rule = seoService.addRedirect({ from, to: type === 410 ? '' : to, type });
+      return rule;
+    }
+  );
+
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/admin/seo/redirects/:id',
+    { preHandler: [requirePermission('seo.manage')] },
+    async (request, reply) => {
+      const deleted = seoService.deleteRedirect(request.params.id);
+      if (!deleted) return reply.status(404).send({ error: 'Rule not found' });
+      return { success: true };
     }
   );
 

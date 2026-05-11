@@ -46,6 +46,7 @@ export class BlogPost extends Model {
   
   metaTitle = new CharField({ maxLength: 60, nullable: true });
   metaDescription = new CharField({ maxLength: 160, nullable: true });
+  schema = new TextField({ nullable: true });
 
   categoryId = new IntegerField({ nullable: true });
   authorId = new IntegerField({ nullable: true });

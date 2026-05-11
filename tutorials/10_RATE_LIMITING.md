@@ -14,7 +14,7 @@ Example shape:
 
 ```typescript
 await fastify.register(rateLimit, {
-  max: 500,
+  max: 100,
   timeWindow: '1 minute'
 });
 ```

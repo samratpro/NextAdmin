@@ -710,6 +710,27 @@ export default function ModelDetailPage() {
                     />
                 );
             }
+            if (fieldName === 'schema') {
+                return (
+                    <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
+                            <div className="flex gap-1.5">
+                                <div className="w-3 h-3 rounded-full bg-red-500/30 border border-red-500/60" />
+                                <div className="w-3 h-3 rounded-full bg-amber-500/30 border border-amber-500/60" />
+                                <div className="w-3 h-3 rounded-full bg-green-500/30 border border-green-500/60" />
+                            </div>
+                            <span className="text-[10px] text-gray-500 font-mono">application/ld+json</span>
+                        </div>
+                        <textarea
+                            value={value}
+                            onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
+                            rows={10}
+                            placeholder={'{ "@context": "https://schema.org", "@type": "BlogPosting", "headline": "...", "image": "...", "author": { "@type": "Person", "name": "..." } }'}
+                            className="w-full bg-transparent text-indigo-300 font-mono text-xs focus:outline-none resize-y leading-relaxed px-4 py-3"
+                        />
+                    </div>
+                );
+            }
             return (
                 <div>
                     <textarea

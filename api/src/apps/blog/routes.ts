@@ -32,12 +32,26 @@ export default async function blogRoutes(fastify: FastifyInstance) {
     
     // Filtering only published posts
     const allPosts = (await query.all()).filter((post: any) => post.published);
-    
+
     // Simple pagination
     const paginatedPosts = allPosts.slice(offset, offset + limit);
-    
-    return { 
-        data: paginatedPosts,
+
+    const siteUrl = (process.env.SITE_URL || '').replace(/\/$/, '');
+    const postsWithSeo = paginatedPosts.map((p: any) => ({
+      ...p,
+      seo: {
+        canonicalUrl: `${siteUrl}/blog/${p.slug}`,
+        ogTitle: p.metaTitle || p.title || '',
+        ogDescription: p.metaDescription || p.excerpt || '',
+        ogImage: p.featuredImage || '',
+        twitterTitle: p.metaTitle || p.title || '',
+        twitterDescription: p.metaDescription || p.excerpt || '',
+        twitterImage: p.featuredImage || '',
+      }
+    }));
+
+    return {
+        data: postsWithSeo,
         total: allPosts.length
     };
   });
@@ -56,7 +70,26 @@ export default async function blogRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Post not found' });
     }
 
-    return { data: post };
+    const p = post as any;
+    const siteUrl = (process.env.SITE_URL || '').replace(/\/$/, '');
+    const ogTitle = p.metaTitle || p.title || '';
+    const ogDescription = p.metaDescription || p.excerpt || '';
+    const ogImage = p.featuredImage || '';
+
+    return {
+      data: {
+        ...p,
+        seo: {
+          canonicalUrl: `${siteUrl}/blog/${p.slug}`,
+          ogTitle,
+          ogDescription,
+          ogImage,
+          twitterTitle: ogTitle,
+          twitterDescription: ogDescription,
+          twitterImage: ogImage,
+        }
+      }
+    };
   });
 
   // Public route to list all categories

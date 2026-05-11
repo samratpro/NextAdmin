@@ -14,13 +14,16 @@ interface PageSeo {
     metaTitle: string;
     metaDescription: string;
     canonicalUrl: string;
+    ogType: string;
     ogTitle: string;
     ogDescription: string;
     ogImage: string;
+    twitterCardType: string;
     twitterTitle: string;
     twitterDescription: string;
     twitterImage: string;
     noIndex: boolean;
+    noFollow: boolean;
     schema: string;
 }
 
@@ -29,17 +32,31 @@ interface GlobalSeoSettings {
     footerScripts: string;
 }
 
+interface ModelUrlPattern {
+    modelName: string;
+    slugField: string;
+    urlPrefix: string;
+}
+
 interface SitemapConfig {
     enabled: boolean;
     frequency: 'daily' | 'weekly' | 'monthly';
     priority: number;
     excludeSlugs: string[];
-    includedModels: string[];
     staticPaths: string[];
     maxUrlsPerSitemap: number;
+    modelSlugs: ModelUrlPattern[];
 }
 
-type Tab = 'pages' | 'robots' | 'scripts' | 'sitemap' | 'backup';
+type Tab = 'pages' | 'robots' | 'scripts' | 'sitemap' | 'redirects' | 'backup';
+
+interface RedirectRule {
+    id: string;
+    from: string;
+    to: string;
+    type: 301 | 410;
+    createdAt: string;
+}
 
 // --- Sub-components ---
 
@@ -159,17 +176,96 @@ export default function SeoManagementPage() {
     const [pages, setPages] = useState<PageSeo[]>([]);
     const [sitemap, setSitemap] = useState<SitemapConfig>({
         enabled: true, frequency: 'daily', priority: 0.8,
-        excludeSlugs: [], includedModels: [], staticPaths: [], maxUrlsPerSitemap: 0
+        excludeSlugs: [], staticPaths: [], maxUrlsPerSitemap: 0, modelSlugs: []
     });
     const [availableModels, setAvailableModels] = useState<{ name: string; displayName: string }[]>([]);
 
     // Page editing state
     const [editingPage, setEditingPage] = useState<PageSeo | null>(null);
 
+    // Redirect state
+    const [redirects, setRedirects] = useState<RedirectRule[]>([]);
+    const [newRedirect, setNewRedirect] = useState<{ from: string; to: string; type: 301 | 410 }>({ from: '', to: '', type: 301 });
+    const [addingRedirect, setAddingRedirect] = useState(false);
+
     useEffect(() => {
         if (activeTab === 'pages') loadAllData();
+        if (activeTab === 'sitemap') loadSitemapModels();
         if (activeTab === 'backup') fetchDriveStatus();
+        if (activeTab === 'redirects') loadRedirects();
     }, [activeTab]);
+
+    const loadSitemapModels = async () => {
+        if (availableModels.length > 0) return;
+        try {
+            const res = await api.get('/api/admin/models');
+            setAvailableModels((res?.models || []).map((m: any) => ({ name: m.name, displayName: m.displayName })));
+        } catch {}
+    };
+
+    const loadRedirects = async () => {
+        setLoading(true);
+        try {
+            const data = await api.listRedirects();
+            setRedirects(data || []);
+        } catch {
+            setMessage({ type: 'error', text: 'Failed to load redirects' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddRedirect = async () => {
+        // Normalize: strip protocol+domain if present, ensure leading slash
+        const normalizePath = (raw: string): string => {
+            let p = raw.trim();
+            try { p = new URL(p).pathname; } catch {}
+            if (!p.startsWith('/')) p = '/' + p;
+            return p;
+        };
+
+        const fromPath = normalizePath(newRedirect.from);
+        if (fromPath === '/') {
+            setMessage({ type: 'error', text: 'Source path is required' });
+            return;
+        }
+        if (newRedirect.type === 301 && !newRedirect.to.trim()) {
+            setMessage({ type: 'error', text: 'Destination path is required for 301 redirect' });
+            return;
+        }
+        if (redirects.some(r => r.from === fromPath)) {
+            setMessage({ type: 'error', text: `A rule for "${fromPath}" already exists` });
+            return;
+        }
+        const normalizeToPath = (raw: string): string => {
+            const p = raw.trim();
+            if (/^https?:\/\//i.test(p)) return p;
+            return p.startsWith('/') ? p : '/' + p;
+        };
+        const toPath = newRedirect.type === 301 ? normalizeToPath(newRedirect.to) : '';
+        setAddingRedirect(true);
+        try {
+            const rule = await api.addRedirect({ ...newRedirect, from: fromPath, to: toPath });
+            setRedirects(prev => [...prev, rule]);
+            setNewRedirect({ from: '', to: '', type: 301 });
+            setMessage({ type: 'success', text: 'Redirect rule added' });
+        } catch {
+            setMessage({ type: 'error', text: 'Failed to add redirect rule' });
+        } finally {
+            setAddingRedirect(false);
+        }
+    };
+
+    const handleDeleteRedirect = async (id: string) => {
+        if (!confirm('Delete this redirect rule?')) return;
+        try {
+            await api.deleteRedirect(id);
+            setRedirects(prev => prev.filter(r => r.id !== id));
+            setMessage({ type: 'success', text: 'Rule deleted' });
+        } catch {
+            setMessage({ type: 'error', text: 'Failed to delete rule' });
+        }
+    };
 
     const fetchDriveStatus = async () => {
         try {
@@ -181,19 +277,16 @@ export default function SeoManagementPage() {
     const loadAllData = async () => {
         setLoading(true);
         try {
-            const [robotsRes, globalRes, pagesRes, sitemapRes, modelsRes] = await Promise.all([
+            const [robotsRes, globalRes, pagesRes, sitemapRes] = await Promise.all([
                 api.getSeoRobots(),
                 api.getSeoGlobalScripts(),
                 api.listSeoPages(),
                 api.getSeoSitemapConfig(),
-                api.get('/api/admin/models'),
             ]);
             setRobots(robotsRes.content || '');
             setGlobalSettings(globalRes);
             setPages(pagesRes || []);
             setSitemap(sitemapRes);
-            const modelList = (modelsRes?.models || []).map((m: any) => ({ name: m.name, displayName: m.displayName }));
-            setAvailableModels(modelList);
         } catch (err) {
             console.error('SEO: Load error:', err);
             setMessage({ type: 'error', text: 'Failed to load SEO data' });
@@ -235,19 +328,6 @@ export default function SeoManagementPage() {
             setMessage({ type: 'error', text: 'Page slug is required' });
             return;
         }
-
-        const normalize = (s: string) => s.replace(/^\//, '').replace(/\/$/, '');
-        const targetSlug = normalize(slug);
-
-        // Check for duplicates if creating NEW
-        const isExisting = pages.some(p => normalize(p.pageSlug) === targetSlug);
-        // If editing an existing one, we are fine as long as we don't change to another existing one
-        // But for simplicity, we use the backend to handle the merge/overwrite, 
-        // however the user asked for termination if slug exists.
-        // Actually, if we are EDITING, we want to overwrite. If we are ADDING, we want to warn.
-        
-        // Let's assume 'editingPage' from the '+ Add Page' button has no original slug.
-        // We'll just let the user save.
 
         setSaving(true);
         try {
@@ -304,9 +384,9 @@ export default function SeoManagementPage() {
                             <button 
                                 onClick={() => setEditingPage({
                                     pageSlug: '', metaTitle: '', metaDescription: '', canonicalUrl: '',
-                                    ogTitle: '', ogDescription: '', ogImage: '',
-                                    twitterTitle: '', twitterDescription: '', twitterImage: '',
-                                    noIndex: false, schema: ''
+                                    ogType: 'website', ogTitle: '', ogDescription: '', ogImage: '',
+                                    twitterCardType: 'summary_large_image', twitterTitle: '', twitterDescription: '', twitterImage: '',
+                                    noIndex: false, noFollow: false, schema: ''
                                 })}
                                 className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
                             >
@@ -335,6 +415,7 @@ export default function SeoManagementPage() {
                                 { id: 'robots', label: 'Robots.txt', icon: '🤖' },
                                 { id: 'scripts', label: 'Global Scripts', icon: '📜' },
                                 { id: 'sitemap', label: 'XML Sitemap', icon: '🗺️' },
+                                { id: 'redirects', label: 'Redirects', icon: '↪️' },
                                 { id: 'backup', label: 'Backup & Restore', icon: '💾' },
                             ].map(tab => (
                                 <button
@@ -368,7 +449,7 @@ export default function SeoManagementPage() {
                                                     <div className="text-4xl mb-4 opacity-20">📂</div>
                                                     <p className="text-gray-400 font-medium">No page SEO configured yet.</p>
                                                     <button 
-                                                        onClick={() => setEditingPage({pageSlug: '', metaTitle: '', metaDescription: '', canonicalUrl: '', ogTitle: '', ogDescription: '', ogImage: '', twitterTitle: '', twitterDescription: '', twitterImage: '', noIndex: false, schema: ''})}
+                                                        onClick={() => setEditingPage({pageSlug: '', metaTitle: '', metaDescription: '', canonicalUrl: '', ogType: 'website', ogTitle: '', ogDescription: '', ogImage: '', twitterCardType: 'summary_large_image', twitterTitle: '', twitterDescription: '', twitterImage: '', noIndex: false, noFollow: false, schema: ''})}
                                                         className="mt-4 text-indigo-600 font-bold hover:underline"
                                                     >+ Create your first page SEO</button>
                                                 </div>
@@ -387,7 +468,7 @@ export default function SeoManagementPage() {
                                                                     <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-indigo-600 transition-colors">{page.metaTitle || 'Untitled Page'}</h3>
                                                                 </div>
                                                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0">
-                                                                    <button onClick={() => setEditingPage(page)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
+                                                                    <button onClick={() => setEditingPage({ ogType: 'website', twitterCardType: 'summary_large_image', noFollow: false, ...page })} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
                                                                         ✏️
                                                                     </button>
                                                                     <button onClick={() => handleDeletePage(page.pageSlug)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
@@ -438,15 +519,38 @@ export default function SeoManagementPage() {
                                                             <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Page Slug (URL Path)</label>
                                                             <div className="relative">
                                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm">/</span>
-                                                                <input 
-                                                                    type="text" 
-                                                                    value={editingPage.pageSlug} 
-                                                                    onChange={(e) => setEditingPage({...editingPage, pageSlug: e.target.value})}
+                                                                <input
+                                                                    type="text"
+                                                                    value={editingPage.pageSlug}
+                                                                    onChange={(e) => {
+                                                                        const newSlug = e.target.value;
+                                                                        const toCanonical = (s: string) =>
+                                                                            s === 'home' ? 'https://example.com/' : `https://example.com/${s}`;
+                                                                        const prevAuto = editingPage.pageSlug ? toCanonical(editingPage.pageSlug) : '';
+                                                                        const autoFill = !editingPage.canonicalUrl || editingPage.canonicalUrl === prevAuto;
+                                                                        setEditingPage({
+                                                                            ...editingPage,
+                                                                            pageSlug: newSlug,
+                                                                            canonicalUrl: autoFill ? (newSlug ? toCanonical(newSlug) : '') : editingPage.canonicalUrl,
+                                                                        });
+                                                                    }}
                                                                     placeholder="services/web-design"
                                                                     className="w-full border border-gray-300 rounded-xl pl-6 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                                                                 />
                                                             </div>
                                                             <p className="text-[10px] text-gray-400 mt-2 italic">Use "home" for your website's index page.</p>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Canonical URL</label>
+                                                            <input
+                                                                type="text"
+                                                                value={editingPage.canonicalUrl}
+                                                                onChange={(e) => setEditingPage({...editingPage, canonicalUrl: e.target.value})}
+                                                                placeholder="https://example.com/about"
+                                                                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                                            />
+                                                            <p className="text-[10px] text-gray-400 mt-2 italic">Enter the full URL — the admin cannot detect your frontend domain. Example: <span className="font-mono not-italic">https://example.com/about</span></p>
                                                         </div>
 
                                                         <div>
@@ -471,13 +575,24 @@ export default function SeoManagementPage() {
                                                             <CharacterCounter current={editingPage.metaDescription.length} max={160} />
                                                         </div>
 
-                                                        <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 group cursor-pointer" onClick={() => setEditingPage({...editingPage, noIndex: !editingPage.noIndex})}>
-                                                            <div className={`w-10 h-6 rounded-full transition-colors relative ${editingPage.noIndex ? 'bg-red-500' : 'bg-gray-200'}`}>
-                                                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${editingPage.noIndex ? 'translate-x-5' : 'translate-x-1'}`} />
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer" onClick={() => setEditingPage({...editingPage, noIndex: !editingPage.noIndex})}>
+                                                                <div className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${editingPage.noIndex ? 'bg-red-500' : 'bg-gray-200'}`}>
+                                                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${editingPage.noIndex ? 'translate-x-5' : 'translate-x-1'}`} />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <p className="text-sm font-bold text-gray-900">No-Index</p>
+                                                                    <p className="text-[10px] text-gray-500">Exclude this page from search engine results.</p>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex-1">
-                                                                <p className="text-sm font-bold text-gray-900">No-Index</p>
-                                                                <p className="text-[10px] text-gray-500">Prevent search engines from indexing this page.</p>
+                                                            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer" onClick={() => setEditingPage({...editingPage, noFollow: !editingPage.noFollow})}>
+                                                                <div className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${editingPage.noFollow ? 'bg-amber-500' : 'bg-gray-200'}`}>
+                                                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${editingPage.noFollow ? 'translate-x-5' : 'translate-x-1'}`} />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <p className="text-sm font-bold text-gray-900">No-Follow</p>
+                                                                    <p className="text-[10px] text-gray-500">Tell crawlers not to follow links on this page.</p>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -493,10 +608,22 @@ export default function SeoManagementPage() {
                                                     <div className="space-y-6">
                                                         <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
                                                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Facebook / LinkedIn (OG)</p>
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="OG Title"
-                                                                value={editingPage.ogTitle} 
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">Page Type</label>
+                                                                <select
+                                                                    value={editingPage.ogType}
+                                                                    onChange={(e) => setEditingPage({...editingPage, ogType: e.target.value})}
+                                                                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                                >
+                                                                    <option value="website">website</option>
+                                                                    <option value="article">article</option>
+                                                                    <option value="product">product</option>
+                                                                </select>
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="OG Title (leave blank to use Meta Title)"
+                                                                value={editingPage.ogTitle}
                                                                 onChange={(e) => setEditingPage({...editingPage, ogTitle: e.target.value})}
                                                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                             />
@@ -519,11 +646,29 @@ export default function SeoManagementPage() {
 
                                                         <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
                                                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Twitter Card</p>
-                                                            <input 
-                                                                type="text" 
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">Card Type</label>
+                                                                <select
+                                                                    value={editingPage.twitterCardType}
+                                                                    onChange={(e) => setEditingPage({...editingPage, twitterCardType: e.target.value})}
+                                                                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                                >
+                                                                    <option value="summary_large_image">summary_large_image (large image preview)</option>
+                                                                    <option value="summary">summary (small thumbnail)</option>
+                                                                </select>
+                                                            </div>
+                                                            <input
+                                                                type="text"
                                                                 placeholder="Twitter Title"
-                                                                value={editingPage.twitterTitle} 
+                                                                value={editingPage.twitterTitle}
                                                                 onChange={(e) => setEditingPage({...editingPage, twitterTitle: e.target.value})}
+                                                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                            />
+                                                            <textarea
+                                                                rows={2}
+                                                                placeholder="Twitter Description"
+                                                                value={editingPage.twitterDescription}
+                                                                onChange={(e) => setEditingPage({...editingPage, twitterDescription: e.target.value})}
                                                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                             />
                                                             <ImageUploadField
@@ -692,29 +837,16 @@ export default function SeoManagementPage() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                                                        <h4 className="text-xs font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                                                            Included Database Models
-                                                        </h4>
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            {availableModels.map(m => (
-                                                                <label key={m.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition-colors cursor-pointer group">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={sitemap.includedModels.includes(m.name)}
-                                                                        onChange={(e) => {
-                                                                            const next = e.target.checked
-                                                                                ? [...sitemap.includedModels, m.name]
-                                                                                : sitemap.includedModels.filter(n => n !== m.name);
-                                                                            setSitemap({...sitemap, includedModels: next});
-                                                                        }}
-                                                                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                                    />
-                                                                    <span className="text-sm text-gray-600 group-hover:text-gray-900">{m.displayName || m.name}</span>
-                                                                </label>
-                                                            ))}
-                                                        </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-gray-700 uppercase mb-2">Max URLs per Sitemap <span className="normal-case font-normal text-gray-400">(0 = unlimited)</span></label>
+                                                        <input
+                                                            type="number" min="0" step="1000"
+                                                            value={sitemap.maxUrlsPerSitemap}
+                                                            onChange={(e) => setSitemap({...sitemap, maxUrlsPerSitemap: parseInt(e.target.value) || 0})}
+                                                            placeholder="0"
+                                                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        />
+                                                        <p className="text-[10px] text-gray-400 mt-1.5">Google recommends keeping sitemaps under 50,000 URLs or 50MB.</p>
                                                     </div>
                                                 </div>
 
@@ -746,6 +878,62 @@ export default function SeoManagementPage() {
                                                                 onClick={() => setSitemap({...sitemap, staticPaths: [...(sitemap.staticPaths || []), '']})}
                                                                 className="text-indigo-600 text-xs font-bold hover:underline"
                                                             >+ Add Manual Path</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
+                                                        <h4 className="text-xs font-bold text-gray-900 mb-1">Model URL Patterns</h4>
+                                                        <p className="text-[10px] text-gray-400">Map a model's slug field to a URL prefix so its records appear in the sitemap.</p>
+                                                        <div className="space-y-2">
+                                                            {(sitemap.modelSlugs || []).map((pattern, i) => (
+                                                                <div key={i} className="grid grid-cols-12 gap-1.5 items-center">
+                                                                    <select
+                                                                        value={pattern.modelName}
+                                                                        onChange={(e) => {
+                                                                            const next = [...sitemap.modelSlugs];
+                                                                            next[i] = { ...next[i], modelName: e.target.value };
+                                                                            setSitemap({ ...sitemap, modelSlugs: next });
+                                                                        }}
+                                                                        className="col-span-4 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                                    >
+                                                                        <option value="">Model</option>
+                                                                        {availableModels.map(m => (
+                                                                            <option key={m.name} value={m.name}>{m.displayName || m.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={pattern.slugField}
+                                                                        placeholder="slug field"
+                                                                        onChange={(e) => {
+                                                                            const next = [...sitemap.modelSlugs];
+                                                                            next[i] = { ...next[i], slugField: e.target.value };
+                                                                            setSitemap({ ...sitemap, modelSlugs: next });
+                                                                        }}
+                                                                        className="col-span-3 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono"
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        value={pattern.urlPrefix}
+                                                                        placeholder="/blog"
+                                                                        onChange={(e) => {
+                                                                            const next = [...sitemap.modelSlugs];
+                                                                            next[i] = { ...next[i], urlPrefix: e.target.value };
+                                                                            setSitemap({ ...sitemap, modelSlugs: next });
+                                                                        }}
+                                                                        className="col-span-4 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => setSitemap({ ...sitemap, modelSlugs: sitemap.modelSlugs.filter((_, idx) => idx !== i) })}
+                                                                        className="col-span-1 text-red-400 hover:text-red-600 transition-colors text-center"
+                                                                    >✕</button>
+                                                                </div>
+                                                            ))}
+                                                            <p className="text-[10px] text-gray-300 font-mono">model → slug field → /url-prefix/{`{value}`}</p>
+                                                            <button
+                                                                onClick={() => setSitemap({ ...sitemap, modelSlugs: [...(sitemap.modelSlugs || []), { modelName: '', slugField: 'slug', urlPrefix: '' }] })}
+                                                                className="text-indigo-600 text-xs font-bold hover:underline"
+                                                            >+ Add Model Pattern</button>
                                                         </div>
                                                     </div>
 
@@ -790,6 +978,188 @@ export default function SeoManagementPage() {
                                                 >
                                                     {saving ? 'Saving...' : 'Save Sitemap Settings'}
                                                 </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* REDIRECTS TAB */}
+                                    {activeTab === 'redirects' && (
+                                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                            {/* Header */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div>
+                                                    <h2 className="text-xl font-bold text-gray-900">Redirect Rules</h2>
+                                                    <p className="text-sm text-gray-500 mt-1">
+                                                        Rules are served at <span className="font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-xs">GET /api/seo/redirects</span> — fetch and apply them in your website (port 3000).
+                                                    </p>
+                                                </div>
+                                                <div className="flex-shrink-0 text-right">
+                                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total rules</span>
+                                                    <p className="text-2xl font-bold text-indigo-600">{redirects.length}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Add Rule Form */}
+                                            <div className="bg-gray-50 rounded-2xl border border-gray-200 p-6 space-y-4">
+                                                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-widest">Add New Rule</h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                                    {/* Type selector */}
+                                                    <div className="md:col-span-2">
+                                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">Type</label>
+                                                        <div className="flex rounded-xl overflow-hidden border border-gray-300">
+                                                            {([301, 410] as const).map(t => (
+                                                                <button
+                                                                    key={t}
+                                                                    type="button"
+                                                                    onClick={() => setNewRedirect(prev => ({ ...prev, type: t, to: t === 410 ? '' : prev.to }))}
+                                                                    className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
+                                                                        newRedirect.type === t
+                                                                            ? t === 301
+                                                                                ? 'bg-indigo-600 text-white'
+                                                                                : 'bg-red-500 text-white'
+                                                                            : 'bg-white text-gray-500 hover:bg-gray-50'
+                                                                    }`}
+                                                                >
+                                                                    {t}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* From path */}
+                                                    <div className="md:col-span-4">
+                                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">From Path</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm">/</span>
+                                                            <input
+                                                                type="text"
+                                                                value={newRedirect.from.replace(/^\//, '')}
+                                                                onChange={e => setNewRedirect(prev => ({ ...prev, from: '/' + e.target.value }))}
+                                                                placeholder="old-page"
+                                                                className="w-full border border-gray-300 rounded-xl pl-6 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Arrow indicator */}
+                                                    <div className="md:col-span-1 flex justify-center pb-1">
+                                                        {newRedirect.type === 301
+                                                            ? <span className="text-gray-400 text-lg font-bold">→</span>
+                                                            : <span className="text-red-400 text-sm font-bold">✕</span>
+                                                        }
+                                                    </div>
+
+                                                    {/* To path */}
+                                                    <div className="md:col-span-4">
+                                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">
+                                                            {newRedirect.type === 301 ? 'To Path' : 'Response'}
+                                                        </label>
+                                                        {newRedirect.type === 301 ? (
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="text"
+                                                                    value={newRedirect.to}
+                                                                    onChange={e => setNewRedirect(prev => ({ ...prev, to: e.target.value }))}
+                                                                    placeholder="/new-page  or  https://external.com/page"
+                                                                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-full border border-red-200 rounded-xl px-3 py-2.5 text-sm font-mono bg-red-50 text-red-500 flex items-center gap-2">
+                                                                <span className="text-xs font-bold">410 Gone</span>
+                                                                <span className="text-[10px] text-red-400">— page permanently removed</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Add button */}
+                                                    <div className="md:col-span-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleAddRedirect}
+                                                            disabled={addingRedirect}
+                                                            className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all text-sm shadow-lg shadow-indigo-100"
+                                                        >
+                                                            {addingRedirect ? '...' : 'Add'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Rules Table */}
+                                            {redirects.length === 0 ? (
+                                                <div className="text-center py-16 border-2 border-dashed border-gray-100 rounded-2xl">
+                                                    <div className="text-4xl mb-3 opacity-20">↪️</div>
+                                                    <p className="text-gray-400 font-medium">No redirect rules yet.</p>
+                                                    <p className="text-xs text-gray-300 mt-1">Add a rule above to get started.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                                                    <table className="w-full text-sm">
+                                                        <thead>
+                                                            <tr className="border-b border-gray-100 bg-gray-50/50">
+                                                                <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest w-16">Type</th>
+                                                                <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">From</th>
+                                                                <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">To</th>
+                                                                <th className="px-5 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest w-36">Created</th>
+                                                                <th className="px-5 py-3 w-12"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-50">
+                                                            {redirects.map(rule => (
+                                                                <tr key={rule.id} className="hover:bg-gray-50/50 transition-colors group">
+                                                                    <td className="px-5 py-3.5">
+                                                                        {rule.type === 301 ? (
+                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                                                301
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">
+                                                                                410
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-5 py-3.5">
+                                                                        <span className="font-mono text-xs text-gray-700 bg-gray-100 px-2 py-0.5 rounded">{rule.from}</span>
+                                                                    </td>
+                                                                    <td className="px-5 py-3.5">
+                                                                        {rule.type === 301 ? (
+                                                                            <span className="font-mono text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{rule.to}</span>
+                                                                        ) : (
+                                                                            <span className="text-xs text-red-400 italic">Gone (no destination)</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-5 py-3.5 text-xs text-gray-400">
+                                                                        {new Date(rule.createdAt).toLocaleDateString()}
+                                                                    </td>
+                                                                    <td className="px-5 py-3.5 text-right">
+                                                                        <button
+                                                                            onClick={() => handleDeleteRedirect(rule.id)}
+                                                                            className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                                            title="Delete rule"
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {/* Integration hint */}
+                                            <div className="bg-indigo-950 text-white rounded-2xl p-6 flex items-start gap-5">
+                                                <div className="text-2xl mt-0.5">💡</div>
+                                                <div className="space-y-2">
+                                                    <p className="font-bold text-sm">How to use in your Next.js website (port 3000)</p>
+                                                    <p className="text-xs text-indigo-300 leading-relaxed">Fetch <span className="font-mono bg-indigo-900 px-1.5 py-0.5 rounded text-indigo-200">http://localhost:8000/api/seo/redirects</span> in your <span className="font-mono bg-indigo-900 px-1.5 py-0.5 rounded text-indigo-200">middleware.ts</span> and apply the rules before serving a response.</p>
+                                                    <pre className="text-[11px] bg-indigo-900/60 rounded-xl p-4 font-mono text-indigo-200 leading-relaxed overflow-x-auto whitespace-pre">{`// middleware.ts
+const rules = await fetch('http://localhost:8000/api/seo/redirects').then(r => r.json());
+const match = rules.find(r => r.from === req.nextUrl.pathname);
+if (match?.type === 301) return NextResponse.redirect(new URL(match.to, req.url));
+if (match?.type === 410) return new NextResponse(null, { status: 410 });`}</pre>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
