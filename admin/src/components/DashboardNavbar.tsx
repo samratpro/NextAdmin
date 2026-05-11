@@ -1,20 +1,21 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { LogOut, User as UserIcon, Menu } from 'lucide-react';
 
 export default function DashboardNavbar() {
     const pathname = usePathname();
     const { user, logout, hasPermission } = useAuthStore();
     const isSuperuser = !!user?.isSuperuser;
-    const canManageSeo = hasPermission('seo.manage');
 
     const navLinks = [
         { name: 'Dashboard', href: '/dashboard' },
         { name: 'Users', href: '/dashboard/models/User', superuserOnly: true },
         { name: 'Backup', href: '/dashboard/backup', superuserOnly: true },
-        { name: 'SEO Management', href: '/dashboard/seo', permission: 'seo.manage' },
+        { name: 'SEO', href: '/dashboard/seo', permission: 'seo.manage' },
     ];
 
     const isActive = (href: string) => {
@@ -22,49 +23,82 @@ export default function DashboardNavbar() {
         return pathname?.startsWith(href);
     };
 
+    const toggleSidebar = () => {
+        window.dispatchEvent(new CustomEvent('toggle-sidebar'));
+    };
+
     return (
-        <nav className="bg-white shadow-sm sticky top-0 z-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-30 shadow-sm">
+            <div className="px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-16">
-                    <div className="flex">
-                        <div className="flex-shrink-0 flex items-center">
-                            <h1 className="text-xl font-bold text-gray-900 mr-8">Admin Panel</h1>
+                    <div className="flex items-center gap-4">
+                        {/* Hamburger — mobile only */}
+                        <button
+                            onClick={toggleSidebar}
+                            className="md:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-all"
+                            aria-label="Open menu"
+                        >
+                            <Menu size={20} />
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-indigo-200 shadow-lg">
+                                <span className="text-white font-bold text-lg">N</span>
+                            </div>
+                            <span className="text-lg font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent hidden sm:block">
+                                NextAdmin
+                            </span>
                         </div>
-                        <div className="hidden sm:flex sm:space-x-8">
+
+                        <div className="h-6 w-px bg-gray-200 mx-2 hidden md:block"></div>
+
+                        {/* Desktop nav links */}
+                        <div className="hidden md:flex md:items-center md:gap-1">
                             {navLinks.map((link) => {
                                 if (link.superuserOnly && !isSuperuser) return null;
                                 if (link.permission && !hasPermission(link.permission)) return null;
-                                
+                                const active = isActive(link.href);
                                 return (
-                                    <a
+                                    <Link
                                         key={link.href}
                                         href={link.href}
-                                        className={`${
-                                            isActive(link.href)
-                                                ? 'border-indigo-500 text-gray-900'
-                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                                        } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors`}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            active
+                                                ? 'text-indigo-600'
+                                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                                        }`}
                                     >
                                         {link.name}
-                                    </a>
+                                    </Link>
                                 );
                             })}
                         </div>
                     </div>
-                    <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-700 font-medium">{user?.username || 'admin'}</span>
-                            {isSuperuser && (
-                                <span className="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded-full font-bold">
-                                    Superuser
+
+                    {/* User info + logout */}
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3 pr-2 border-r border-gray-100 hidden sm:flex">
+                            <div className="flex flex-col items-end">
+                                <span className="text-sm font-bold text-gray-900 leading-none">
+                                    {user?.username || 'admin'}
                                 </span>
-                            )}
+                                {isSuperuser && (
+                                    <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mt-0.5">
+                                        Superuser
+                                    </span>
+                                )}
+                            </div>
+                            <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 border border-gray-200 shadow-sm">
+                                <UserIcon size={18} />
+                            </div>
                         </div>
+                        
                         <button
                             onClick={() => logout()}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                            className="group flex items-center gap-2 text-gray-500 hover:text-red-600 px-3 py-2 rounded-lg hover:bg-red-50 transition-all"
                         >
-                            Logout
+                            <span className="text-sm font-medium hidden md:block">Logout</span>
+                            <LogOut size={18} className="group-hover:translate-x-0.5 transition-transform" />
                         </button>
                     </div>
                 </div>
@@ -72,3 +106,4 @@ export default function DashboardNavbar() {
         </nav>
     );
 }
+

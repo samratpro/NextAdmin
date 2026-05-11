@@ -3,12 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import FiltersSidebar from '@/components/FiltersSidebar';
 import ActionBar from '@/components/ActionBar';
 import Fieldset from '@/components/Fieldset';
-import Sidebar from '@/components/Sidebar';
 import DualListBox from '@/components/DualListBox';
 import CharacterCounter from '@/components/CharacterCounter';
 import dynamic from 'next/dynamic';
@@ -55,7 +53,7 @@ interface FieldMetadata {
 export default function ModelDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const { user, logout } = useAuthStore();
+    const { user } = useAuthStore();
     const modelName = params.modelName as string;
 
     const [metadata, setMetadata] = useState<ModelMetadata | null>(null);
@@ -916,11 +914,8 @@ export default function ModelDetailPage() {
     // Conditional Rendering for Error
     if (error) {
         return (
-            <ProtectedRoute>
-                <div className="flex min-h-screen bg-gray-100">
-                    <Sidebar />
-                    <div className="flex-1 overflow-auto p-10">
-                        <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm">
+            <div className="flex-1 overflow-auto p-10">
+                <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm">
                             <div className="flex">
                                 <div className="flex-shrink-0">
                                     <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -943,9 +938,7 @@ export default function ModelDetailPage() {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </ProtectedRoute>
+            </div>
         );
     }
 
@@ -958,13 +951,7 @@ export default function ModelDetailPage() {
     }
 
     return (
-        <ProtectedRoute>
-            <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-                {/* Left Sidebar - Django Style */}
-                <Sidebar />
-
-                {/* Main Content Area */}
-                <div className="flex-1 overflow-auto">
+        <><div className="flex-1 overflow-auto">
                     {/* Notification */}
                     {notification && (
                         <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg animate-slide-in ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
@@ -972,40 +959,6 @@ export default function ModelDetailPage() {
                             {notification.message}
                         </div>
                     )}
-
-                    {/* Navigation */}
-                    <nav className="bg-white shadow-md border-b border-gray-200">
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex justify-between h-16">
-                                <div className="flex items-center space-x-8">
-                                    <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                                        Admin Panel
-                                    </h1>
-                                    <div className="hidden sm:flex sm:space-x-4">
-                                        <a href="/dashboard" className="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                                            Dashboard
-                                        </a>
-
-                                        <a href="/dashboard/models" className="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                                            Models
-                                        </a>
-                                        <span className="text-indigo-600 px-3 py-2 rounded-md text-sm font-medium bg-indigo-50">
-                                            {metadata.displayName}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <span className="text-sm font-medium text-gray-700">{user?.username}</span>
-                                    <button
-                                        onClick={async () => { await logout(); router.push('/login'); }}
-                                        className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
-                                    >
-                                        Logout
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </nav>
 
                     {/* Page Header */}
                     <div className="bg-white shadow-sm border-b border-gray-200">
@@ -1288,7 +1241,7 @@ export default function ModelDetailPage() {
                                             </h3>
                                         </div>
 
-                                        <div className="bg-white px-6 py-6 max-h-[32rem] overflow-y-auto">
+                                        <div className="bg-white px-6 py-6 max-h-[75vh] overflow-y-auto">
                                             {/* Main Fieldset */}
                                             <Fieldset title="Basic Information" defaultExpanded={true} collapsible={false}>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1420,12 +1373,9 @@ export default function ModelDetailPage() {
                             </div>
                         </div>
                     )}
-                </div>
-                {/* End Main Content Area */}
-            </div>
-            {/* End Flex Container */}
+        </div>
 
-            <style jsx global>{`
+        <style jsx global>{`
                 @keyframes slide-in {
                     from {
                         transform: translateX(100%);
@@ -1439,7 +1389,6 @@ export default function ModelDetailPage() {
                 .animate-slide-in {
                     animation: slide-in 0.3s ease-out;
                 }
-            `}</style>
-        </ProtectedRoute>
+        `}</style></>
     );
 }

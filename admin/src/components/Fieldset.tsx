@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 interface FieldsetProps {
     title: string;
@@ -9,41 +10,22 @@ interface FieldsetProps {
     collapsible?: boolean;
 }
 
-export default function Fieldset({
-    title,
-    children,
-    defaultExpanded = true,
-    collapsible = true
-}: FieldsetProps) {
+export default function Fieldset({ title, children, defaultExpanded = true, collapsible = true }: FieldsetProps) {
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
     return (
-        <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden mb-4">
+        <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 bg-white">
             <div
-                className={`bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-200 ${collapsible ? 'cursor-pointer hover:from-indigo-100 hover:to-purple-100' : ''
-                    } transition-colors`}
+                className={`px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between ${collapsible ? 'cursor-pointer hover:bg-gray-100' : ''}`}
                 onClick={() => collapsible && setIsExpanded(!isExpanded)}
             >
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-gray-900">
-                        {title}
-                    </h3>
-                    {collapsible && (
-                        <svg
-                            className={`w-5 h-5 text-gray-600 transition-transform ${isExpanded ? 'rotate-180' : ''
-                                }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    )}
-                </div>
+                <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+                {collapsible && (
+                    <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                )}
             </div>
-
             {isExpanded && (
-                <div className="px-6 py-6">
+                <div className="px-4 py-4">
                     {children}
                 </div>
             )}

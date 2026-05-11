@@ -28,6 +28,10 @@ db.sqlite3
 */.env
 **/.env
 
+# Keep local dev defaults committed — no real secrets, safe to track
+!api/.env
+!admin/.env
+
 # Google Drive credentials/tokens
 .google_credentials.json
 .google_tokens.json

@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import DashboardNavbar from '@/components/DashboardNavbar';
 import { api } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -994,24 +992,20 @@ export default function BackupPage() {
   // Superuser-only guard — must be after all hooks
   if (user && !isSuperuser) {
     return (
-      <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg shadow-sm max-w-md w-full text-center">
-            <h2 className="text-lg font-bold mb-2">Access Denied</h2>
-            <p>Backup management is restricted to Superusers only.</p>
-            <div className="mt-4">
-              <a href="/dashboard" className="text-red-800 font-medium underline">Return to Dashboard</a>
-            </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg shadow-sm max-w-md w-full text-center">
+          <h2 className="text-lg font-bold mb-2">Access Denied</h2>
+          <p>Backup management is restricted to Superusers only.</p>
+          <div className="mt-4">
+            <a href="/dashboard" className="text-red-800 font-medium underline">Return to Dashboard</a>
           </div>
         </div>
-      </ProtectedRoute>
+      </div>
     );
   }
 
   return (
-    <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        <DashboardNavbar />
 
         {/* Content */}
         <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1046,6 +1040,5 @@ export default function BackupPage() {
           {tab === 'running'   && <RunningTab onNotify={notify} />}
         </main>
       </div>
-    </ProtectedRoute>
   );
 }

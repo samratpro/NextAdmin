@@ -1,10 +1,8 @@
 'use client';
 
 import { useAuthStore } from '@/store/authStore';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { useRouter } from 'next/navigation';
-import DashboardNavbar from '@/components/DashboardNavbar';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
@@ -47,9 +45,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        <DashboardNavbar />
 
         {/* Page Content */}
         <div className="py-10">
@@ -237,7 +233,7 @@ export default function DashboardPage() {
                   <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
                     <div className="px-4 py-5 sm:p-6">
                       <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        Welcome to your Django-like Admin Panel!
+                        Welcome to your NextAdmin Panel!
                       </h3>
                       <div className="mt-2 max-w-xl text-sm text-gray-500">
                         <p>
@@ -329,6 +325,5 @@ export default function DashboardPage() {
           </main>
         </div>
       </div>
-    </ProtectedRoute>
   );
 }

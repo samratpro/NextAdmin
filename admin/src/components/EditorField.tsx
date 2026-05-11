@@ -121,7 +121,7 @@ export const EditorField: React.FC<EditorFieldProps> = ({
     return () => {
       editorRef.current = null;
       // On real unmount, destroy if this was the active init.
-      // On StrictMode re-run, the id check above already handles cleanup.
+      // On StrictMode re-run, the id check above handles cleanup.
       editor.isReady
         .then(() => {
           if (latestInitId.current === initId) editor.destroy();

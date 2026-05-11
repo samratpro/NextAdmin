@@ -4,10 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import CharacterCounter from '@/components/CharacterCounter';
-import DashboardNavbar from '@/components/DashboardNavbar';
 
 // --- Types ---
 
@@ -277,16 +275,14 @@ export default function SeoManagementPage() {
 
     if (user && !hasPermission('seo.manage')) {
         return (
-            <ProtectedRoute>
-                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                    <div className="text-center p-8 bg-white rounded-2xl shadow-xl border border-gray-100 max-w-sm">
-                        <div className="text-4xl mb-4">🚫</div>
-                        <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
-                        <p className="text-gray-500 text-sm mb-6">You don't have permission to manage SEO settings.</p>
-                        <button onClick={() => router.push('/dashboard')} className="text-indigo-600 font-bold hover:underline">Back to Dashboard</button>
-                    </div>
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center p-8 bg-white rounded-2xl shadow-xl border border-gray-100 max-w-sm">
+                    <div className="text-4xl mb-4">🚫</div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+                    <p className="text-gray-500 text-sm mb-6">You don't have permission to manage SEO settings.</p>
+                    <button onClick={() => router.push('/dashboard')} className="text-indigo-600 font-bold hover:underline">Back to Dashboard</button>
                 </div>
-            </ProtectedRoute>
+            </div>
         );
     }
 
@@ -296,10 +292,7 @@ export default function SeoManagementPage() {
     ];
 
     return (
-        <ProtectedRoute>
             <div className="min-h-screen bg-gray-50 pb-20">
-                <DashboardNavbar />
-                
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                         <div>
@@ -811,7 +804,6 @@ export default function SeoManagementPage() {
                     </div>
                 </div>
             </div>
-        </ProtectedRoute>
     );
 }
 

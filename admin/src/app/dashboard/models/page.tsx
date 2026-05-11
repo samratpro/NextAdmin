@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import Breadcrumbs from '@/components/Breadcrumbs';
-import Sidebar from '@/components/Sidebar';
 import { api } from '@/lib/api';
 
 interface ModelInfo {
@@ -62,12 +60,6 @@ export default function ModelsPage() {
     };
 
     return (
-        <ProtectedRoute>
-            <div className="flex min-h-screen bg-gray-100">
-                {/* Left Sidebar - Django Style */}
-                <Sidebar />
-
-                {/* Main Content */}
                 <div className="flex-1 overflow-auto">
                     {/* Page Header */}
                     <div className="bg-white shadow-sm border-b border-gray-200">
@@ -159,7 +151,5 @@ export default function ModelsPage() {
                         </div>
                     </main>
                 </div>
-            </div>
-        </ProtectedRoute>
     );
 }
