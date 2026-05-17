@@ -73,18 +73,16 @@ If you want the fastest path to something working, use this order:
 1. create a backend app with `cd api && npm run startapp blog`
 2. define your model in `api/src/apps/blog/models.ts`
 3. add public routes in `api/src/apps/blog/routes.ts`
-4. import the model file in `api/src/index.ts`
-5. register the route module in `api/src/index.ts`
-6. restart the API
-7. log into the admin and manage the model there
-8. fetch the same data from your public frontend
+4. restart the API (everything is auto-discovered!)
+5. log into the admin and manage the model there
+6. fetch the same data from your public frontend
 
 The generated app scaffold now includes:
 
 - `models.ts`
 - `service.ts`
 - `routes.ts`
-- `index.ts`
+- `index.ts` (App entry point)
 
 For the full walkthrough, read [First Feature Guide](./tutorials/FIRST_FEATURE_GUIDE.md).
 
@@ -141,14 +139,43 @@ This builds both `api` and `admin` on the pinned Node version.
 
 ### Create a Superuser
 
+To interactively create a superuser:
 ```bash
 cd api
 npm run createsuperuser
 ```
-In docker
+In docker:
 ```bash
 docker exec -it container_name node dist/cli/create_user.js
 ```
+
+### Automated User Verification & Provisioning (Non-Interactive CLI)
+
+If you are running in a CI/CD environment, checking database connectivity, or want to instantly assert and sync the default superuser without terminal prompt blockages:
+
+```bash
+# Workspace root
+npm run verify-admin
+
+# API directory directly
+cd api && npm run verify-admin
+
+# In docker / Production
+docker exec -it container_name node dist/cli/verify_admin.js
+```
+
+This automated CLI tool connects to your active database, displays a summary of registered users, and guarantees the default `admin` superuser (`admin@example.com` / `admin`) is active and accessible:
+- If no users exist, it automatically creates the default superuser.
+- If the `admin` user exists, it ensures all active/superuser/staff flags are set to `true` and resets their password back to `admin`.
+
+### Dynamic Password Updates & API Security
+
+To align with modern security practices:
+- **API Hash Stripping**: Hashed password strings are never sent over the wire to the web browser. The backend API automatically sanitizes all fields matching `*password*` inside admin endpoints, replacing them with empty strings (`""`).
+- **Dynamic Form Presentation**: The NextAdmin panel detects password inputs, initializes them as empty, and displays the premium security placeholder: `"Leave blank to keep current"`.
+- **Intelligent Updates**:
+  - Leaving the input field empty sends an empty payload, which the API ignores, leaving the existing database password hash completely untouched.
+  - Typing a value triggers the ORM model's hashing methods to securely encrypt and store the new credentials.
 
 ### Create a New App
 
@@ -163,7 +190,7 @@ The scaffold now includes example `models.ts`, `service.ts`, and `routes.ts` fil
 
 ### Register a Model
 
-Create your model in `api/src/apps/<appName>/models.ts`, decorate it with `@registerAdmin`, and import the file in `api/src/index.ts`.
+Create your model in `api/src/apps/<appName>/models.ts` and decorate it with `@registerAdmin`. Because NextAdmin uses an Auto-Discovery Engine, simply placing it in this folder is enough.
 
 Example:
 
@@ -187,21 +214,9 @@ export class Post extends Model {
 }
 ```
 
-Then register the model module:
+If you want public API routes for that app, just create them in `api/src/apps/<appName>/routes.ts` and export the fastify plugin as default. They will also be auto-discovered!
 
-```typescript
-import './apps/blog/models';
-```
-
-If you want public API routes for that app, also register the route module:
-
-```typescript
-import blogRoutes from './apps/blog/routes';
-
-await fastify.register(blogRoutes);
-```
-
-Imported models that use `@registerAdmin(...)` are now auto-created on startup and show up in the admin once the API restarts.
+Models that use `@registerAdmin(...)` are now auto-created on startup and show up in the admin once the API restarts.
 
 ### Database Changes and Migrations
 

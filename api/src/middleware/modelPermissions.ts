@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { User } from '../apps/auth/models';
+
 import permissionService from '../apps/auth/permissionService';
 
 /**

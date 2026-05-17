@@ -1,4 +1,4 @@
-﻿# Model Registration Guide
+# Model Registration Guide
 
 This guide explains the full path from "I want a model" to "I can manage it in the admin and use it in my app".
 
@@ -6,16 +6,11 @@ In NextAdmin, those are separate steps:
 
 1. create the app folder
 2. define the model
-3. import the model in `api/src/index.ts`
-4. register routes for your public API
-5. restart the API
-6. use the model in the admin if it is registered with `@registerAdmin(...)`
+3. define public API routes
+4. restart the API (everything is auto-discovered!)
+5. use the model in the admin if it is registered with `@registerAdmin(...)`
 
-## The Most Important Rule
-
-Defining a model class is not enough by itself.
-
-For a model to matter in practice, you need to wire it into the API runtime explicitly.
+For a model to matter in practice, you need to place it in the correct location (`src/apps/<app>/models.ts`) so the Auto-Discovery Engine can find it.
 
 ## What `startapp` Gives You
 
@@ -33,7 +28,7 @@ That creates:
 - `api/src/apps/blog/routes.ts`
 - `api/src/apps/blog/index.ts`
 
-The generated app is only a starting point. You still need to wire it into `api/src/index.ts`.
+The generated app is immediately ready to be picked up by the Auto-Discovery engine.
 
 ## End-to-End Example
 
@@ -121,31 +116,20 @@ export default async function blogRoutes(fastify: FastifyInstance) {
 }
 ```
 
-### Step 4: Wire the App Into the API
+### Step 4: Restart the API
 
-Edit `api/src/index.ts` and add:
-
-```typescript
-import './apps/blog/models';
-import blogRoutes from './apps/blog/routes';
-```
-
-Then register the routes inside `start()`:
-
-```typescript
-await fastify.register(blogRoutes);
-```
+Because of the Auto-Discovery Engine, you don't need to manually import your models or routes into `api/src/index.ts`.
 
 ## What Happens After Restart
 
 When the API restarts:
 
-1. `import './apps/blog/models'` runs
+1. The auto-discovery engine finds `models.ts` and imports it
 2. `@registerAdmin(...)` registers the model with the admin registry
 3. startup creates the table for imported admin-registered models
 4. default model permissions are created
 5. the model appears in the admin
-6. your custom routes become available
+6. your custom routes in `routes.ts` are automatically registered and become available
 
 ## What `@registerAdmin(...)` Actually Does
 
@@ -387,7 +371,7 @@ That is part of NextAdmin's explicit design.
 Check:
 
 1. the model has `@registerAdmin(...)`
-2. the model file is imported in `api/src/index.ts`
+2. the model file is named `models.ts` or `models/index.ts` in your app folder
 3. the API server was restarted
 4. you are logged into the admin as a superuser or a staff user with the right permissions
 
@@ -395,15 +379,14 @@ Check:
 
 Check:
 
-1. `routes.ts` exists
-2. the routes were registered in `api/src/index.ts`
-3. the API server was restarted
+1. `routes.ts` exists inside your app folder
+2. the API server was restarted
 
 ### Table does not exist
 
 Check:
 
-1. the model file is imported in `api/src/index.ts`
+1. the model file is properly located at `src/apps/<app>/models.ts`
 2. the model is registered with `@registerAdmin(...)`, or you created its table manually
 3. you are pointing at the expected database file
 

@@ -427,7 +427,11 @@ export default function ModelDetailPage() {
         const newFormData: Record<string, any> = {};
         Object.keys(metadata?.fields || {}).forEach(key => {
             if (key !== 'id') {
-                newFormData[key] = item[key] ?? '';
+                if (key.toLowerCase().includes('password')) {
+                    newFormData[key] = '';
+                } else {
+                    newFormData[key] = item[key] ?? '';
+                }
             }
         });
         setFormData(newFormData);
@@ -1056,7 +1060,7 @@ export default function ModelDetailPage() {
                     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                         <div className="flex gap-6">
                             {/* Main Content */}
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                                 {/* Action Bar */}
                                 {!loading && processedData.length > 0 && (
                                     <ActionBar

@@ -18,9 +18,9 @@ If you are new to the project, read in this order:
 12. [Google Drive Backup](./12_GOOGLE_DRIVE_BACKUP.md)
 13. [SEO Integration](./13_SEO_INTEGRATION.md)
 14. [Removing Blog Feature](./14_REMOVING_BLOG_FEATURE.md)
-15. [Production Deployment](./15_PRODUCTION_DEPLOYMENT.md)
-16. [CI/CD with GitHub Actions](./16_CICD_GITHUB_ACTIONS.md)
-17. [Site Settings](./17_SITE_SETTINGS.md)
+15. [Site Settings](./15_SITE_SETTINGS.md)
+16. [Production Deployment](./16_PRODUCTION_DEPLOYMENT.md)
+17. [CI/CD with GitHub Actions](./17_CICD_GITHUB_ACTIONS.md)
 
 ---
 
@@ -33,9 +33,9 @@ If you are new to the project, read in this order:
 | Understand model wiring and admin registration | [05_MODEL_REGISTRATION_GUIDE.md](./05_MODEL_REGISTRATION_GUIDE.md) |
 | Set up login, registration, and protected routes | [06_USER_AND_AUTH_GUIDE.md](./06_USER_AND_AUTH_GUIDE.md) |
 | Set up SMTP for email verification and password reset | [08_EMAIL_CONFIGURATION.md](./08_EMAIL_CONFIGURATION.md) |
-| Deploy to a VPS with Docker | [15_PRODUCTION_DEPLOYMENT.md](./15_PRODUCTION_DEPLOYMENT.md) |
-| Set up auto-deploy from GitHub | [16_CICD_GITHUB_ACTIONS.md](./16_CICD_GITHUB_ACTIONS.md) |
-| Manage logo, favicon, title, tagline from the admin | [17_SITE_SETTINGS.md](./17_SITE_SETTINGS.md) |
+| Deploy to a VPS with Docker | [16_PRODUCTION_DEPLOYMENT.md](./16_PRODUCTION_DEPLOYMENT.md) |
+| Set up auto-deploy from GitHub | [17_CICD_GITHUB_ACTIONS.md](./17_CICD_GITHUB_ACTIONS.md) |
+| Manage logo, favicon, title, tagline from the admin | [15_SITE_SETTINGS.md](./15_SITE_SETTINGS.md) |
 
 ---
 

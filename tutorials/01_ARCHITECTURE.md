@@ -1,4 +1,4 @@
-﻿# Architecture
+# Architecture
 
 NextAdmin is a Django-inspired framework with a deliberately more decoupled structure.
 
@@ -87,27 +87,28 @@ This is conceptually similar to Django apps, but the coupling is lighter. Routes
 
 Some things in NextAdmin are automatic after you wire them in, and some things are always explicit.
 
-Automatic after import:
+Automatic:
 
+- models inside `src/apps/*/models.ts` or `src/apps/*/models/index.ts` are auto-imported
 - imported admin-registered models are visible to the admin
 - imported admin-registered model tables are created on startup if missing
 - default model permissions are created for imported admin-registered models
+- routes inside `src/apps/*/*routes.ts` are auto-registered to the Fastify instance
+- global middlewares in `src/apps/*/middleware.ts` are auto-injected globally
 
 Still explicit:
 
-- importing your model into `api/src/index.ts`
-- registering your route module in `api/src/index.ts`
 - building your public frontend
 - deciding which routes are public, staff-only, or authenticated
 
 ## Model Registration
 
-Models are not discovered magically. They become active when:
+Models are discovered automatically if placed in the correct location. They become active when:
 
-1. the model file is imported by `api/src/index.ts`
+1. the model file is located at `api/src/apps/<app-name>/models.ts` (or `models/index.ts`)
 2. the model uses `@registerAdmin(...)` if it should appear in the admin UI
 
-This explicit registration avoids a lot of hidden framework behavior.
+Because of the Auto-Discovery Engine, you never have to edit `api/src/index.ts` to register your models or routes. This allows you to upgrade the framework without running into git merge conflicts.
 
 ## Request Flow
 
@@ -144,11 +145,9 @@ When building a new feature, the usual path is:
 1. run `npm run startapp <name>` in `api/`
 2. edit `models.ts`
 3. edit `routes.ts`
-4. import the model file in `api/src/index.ts`
-5. register the route module in `api/src/index.ts`
-6. restart the API
-7. manage the model in the admin
-8. consume the routes from your public app
+4. restart the API (your files are auto-discovered)
+5. manage the model in the admin
+6. consume the routes from your public app
 
 ## Database Strategy
 

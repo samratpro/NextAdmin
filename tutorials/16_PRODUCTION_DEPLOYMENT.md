@@ -206,7 +206,7 @@ docker-compose logs -f admin
 
 ## Step 5 — Create the First Admin User
 
-Run this once after the first deploy:
+Run this once after the first deploy to interactively provision a user:
 
 ```bash
 docker-compose exec api node dist/cli/create_user.js
@@ -220,7 +220,37 @@ Password: <secure password>
 Role:     admin
 ```
 
-The user persists in PostgreSQL across restarts.
+The user persists in PostgreSQL/SQLite across restarts.
+
+### Automated User Verification & Provisioning (Non-Interactive CLI)
+
+If you are deploying in a CI/CD pipeline, setting up a new environment, or need to instantly verify database connection health and assert standard superuser access without interactive blockages:
+
+```bash
+# Workspace root
+npm run verify-admin
+
+# API directory directly
+cd api && npm run verify-admin
+
+# Docker / Production environment
+docker-compose exec api node dist/cli/verify_admin.js
+```
+
+This automated CLI tool connects to your active database, displays a summary of registered users, and guarantees the default `admin` superuser is active and accessible:
+- If no users exist, it automatically creates the default superuser: `admin@example.com` / `admin`.
+- If the `admin` user exists but was locked out, it ensures all staff/superuser/active flags are set to `true` and resets the password back to `admin`.
+
+---
+
+## Dynamic Password Updates & API Security
+
+To match standard enterprise security patterns:
+- **API Hash Stripping**: Hashed password strings are never sent over the wire to the web browser. The backend API automatically sanitizes all fields matching `*password*` inside admin endpoints, replacing them with empty strings (`""`).
+- **Dynamic Form Presentation**: The NextAdmin panel detects password inputs, initializes them as empty, and displays the premium security placeholder: `"Leave blank to keep current"`.
+- **Intelligent Updates**:
+  - Leaving the input field empty sends an empty payload, which the API ignores, leaving the existing database password hash completely untouched.
+  - Typing a value triggers the ORM model's hashing methods to securely encrypt and store the new credentials.
 
 ---
 

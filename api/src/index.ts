@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -14,8 +15,6 @@ import emailService from './core/email';
 import { ModelRegistry } from './core/ModelRegistry';
 import { requireBasicAuthSuperuser } from './middleware/auth';
 import permissionService from './apps/auth/permissionService';
-import seoRoutes from './apps/seo/routes';
-import settingsRoutes from './apps/settings/routes';
 
 // Import models
 import {
@@ -32,13 +31,8 @@ import {
 
 
 
-// Import routes
-import authRoutes from './apps/auth/routes';
-import adminRoutes from './apps/admin/routes';
-import permissionsRoutes from './apps/admin/permissionsRoutes';
-import backupRoutes from './apps/admin/backupRoutes';
-import blogRoutes from './apps/blog/routes';
-import { Category, BlogPost } from './apps/blog/models';
+// Note: Explicit route and user model imports have been removed.
+// We now dynamically auto-discover models and routes from src/apps/*
 
 const fastify = Fastify({
   logger: {
@@ -64,7 +58,7 @@ async function initializeDatabase() {
     RefreshToken
   ];
 
-  for (const model of [...coreModels, Category, BlogPost]) {
+  for (const model of [...coreModels]) {
     await model.createTable();
   }
 
@@ -86,10 +80,113 @@ async function initializeDatabase() {
   logger.info('Database initialized successfully');
 }
 
+async function loadAppModels() {
+  const appsDir = path.join(__dirname, 'apps');
+  if (!fs.existsSync(appsDir)) return;
+  const appNames = fs.readdirSync(appsDir).filter(f => fs.statSync(path.join(appsDir, f)).isDirectory());
+
+  for (const app of appNames) {
+    const appPath = path.join(appsDir, app);
+    const files = fs.readdirSync(appPath);
+    const hasModelsFile = files.some(f => f === 'models.ts' || f === 'models.js');
+    const hasModelsDir = files.includes('models') && fs.statSync(path.join(appPath, 'models')).isDirectory();
+    
+    if (hasModelsFile || hasModelsDir) {
+      try {
+        await import(`./apps/${app}/models`);
+        logger.info(`Auto-discovered models for app: ${app}`);
+      } catch (e: any) {
+        if (e.code !== 'MODULE_NOT_FOUND' && e.code !== 'ERR_MODULE_NOT_FOUND') {
+          logger.error(`Error loading models for app ${app}:`, e);
+        }
+      }
+    }
+  }
+}
+
+async function registerAppRoutes(fastifyInstance: any) {
+  const appsDir = path.join(__dirname, 'apps');
+  if (!fs.existsSync(appsDir)) return;
+  const appNames = fs.readdirSync(appsDir).filter(f => fs.statSync(path.join(appsDir, f)).isDirectory());
+
+  for (const app of appNames) {
+    const appPath = path.join(appsDir, app);
+    const files = fs.readdirSync(appPath);
+    for (const file of files) {
+      if (file.toLowerCase().includes('routes') && (file.endsWith('.ts') || file.endsWith('.js'))) {
+        try {
+          const routeModule = await import(`./apps/${app}/${file}`);
+          if (routeModule.default) {
+            await fastifyInstance.register(routeModule.default);
+            logger.info(`Auto-registered routes: ${app}/${file}`);
+          }
+        } catch (e: any) {
+          logger.error(`Error registering routes from ${app}/${file}:`, e);
+        }
+      }
+    }
+  }
+}
+
+async function registerAppMiddlewares(fastifyInstance: any) {
+  const appsDir = path.join(__dirname, 'apps');
+  if (!fs.existsSync(appsDir)) return;
+  const appNames = fs.readdirSync(appsDir).filter(f => fs.statSync(path.join(appsDir, f)).isDirectory());
+
+  for (const app of appNames) {
+    const appPath = path.join(appsDir, app);
+    const files = fs.readdirSync(appPath);
+    for (const file of files) {
+      if (file.toLowerCase().includes('middleware') && (file.endsWith('.ts') || file.endsWith('.js'))) {
+        try {
+          const middlewareModule = await import(`./apps/${app}/${file}`);
+          if (middlewareModule.default) {
+            // Calling it directly instead of fastify.register() ensures hooks apply globally
+            await middlewareModule.default(fastifyInstance);
+            logger.info(`Auto-registered global middleware: ${app}/${file}`);
+          }
+        } catch (e: any) {
+          logger.error(`Error registering global middleware from ${app}/${file}:`, e);
+        }
+      }
+    }
+  }
+}
+
+async function runAppSeeders() {
+  const appsDir = path.join(__dirname, 'apps');
+  if (!fs.existsSync(appsDir)) return;
+  const appNames = fs.readdirSync(appsDir).filter(f => fs.statSync(path.join(appsDir, f)).isDirectory());
+
+  for (const app of appNames) {
+    const appPath = path.join(appsDir, app);
+    const files = fs.readdirSync(appPath);
+    const hasSeedFile = files.some(f => f === 'seed.ts' || f === 'seed.js');
+
+    if (hasSeedFile) {
+      try {
+        const seedModule = await import(`./apps/${app}/seed`);
+        if (seedModule.default && typeof seedModule.default === 'function') {
+          logger.info(`Running auto-discovered seeder for app: ${app}`);
+          await seedModule.default();
+        }
+      } catch (e: any) {
+        logger.error(`Error running seeder for app ${app}:`, e);
+      }
+    }
+  }
+}
+
 async function start() {
   try {
+    // Dynamically discover and load models
+    await loadAppModels();
+
     // Initialize database
     await initializeDatabase();
+
+    // Run auto-discovered database seeders
+    await runAppSeeders();
 
     // Initialize email service
     emailService.initialize();
@@ -181,14 +278,11 @@ async function start() {
       transformStaticCSP: (header) => header
     });
 
-    // Register routes
-    await fastify.register(authRoutes);
-    await fastify.register(adminRoutes);
-    await fastify.register(permissionsRoutes);
-    await fastify.register(backupRoutes);
-    await fastify.register(blogRoutes);
-    await fastify.register(seoRoutes);
-    await fastify.register(settingsRoutes);
+    // Register all global middlewares dynamically from src/apps
+    await registerAppMiddlewares(fastify);
+
+    // Register all routes dynamically from src/apps
+    await registerAppRoutes(fastify);
 
     // Health check
     fastify.get('/health', {

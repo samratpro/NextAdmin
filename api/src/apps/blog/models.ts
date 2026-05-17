@@ -25,7 +25,7 @@ export class Category extends Model {
   displayName: 'Blog Posts',
   icon: 'file-text',
   permissions: ['view', 'add', 'change', 'delete'],
-  listDisplay: ['id', 'title', 'slug', 'published', 'createdAt'],
+  listDisplay: ['title', 'published', 'createdAt'],
   searchFields: ['title', 'content', 'excerpt', 'metaTitle', 'metaDescription'],
   filterFields: ['published'],
   relatedFields: {

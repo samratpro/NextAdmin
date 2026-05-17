@@ -22,6 +22,7 @@
     "build:admin": "cd admin && npm run build",
     "migrate": "cd api && npm run migrate",
     "createsuperuser": "cd api && npm run createsuperuser",
+    "verify-admin": "cd api && npm run verify-admin",
     "startapp": "cd api && npm run startapp"
   },
   "dependencies": {

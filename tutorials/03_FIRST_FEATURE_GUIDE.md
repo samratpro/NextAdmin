@@ -1,4 +1,4 @@
-﻿# First Feature Guide
+# First Feature Guide
 
 This is the fastest end-to-end path for building something real in NextAdmin.
 
@@ -49,7 +49,7 @@ import { registerAdmin } from '../../core/adminRegistry';
   displayName: 'Blog Posts',
   icon: 'file-text',
   permissions: ['view', 'add', 'change', 'delete'],
-  listDisplay: ['id', 'title', 'published', 'createdAt'],
+  listDisplay: ['title', 'published', 'createdAt'],
   searchFields: ['title', 'content'],
   filterFields: ['published']
 })
@@ -100,35 +100,22 @@ export default async function blogRoutes(fastify: FastifyInstance) {
 }
 ```
 
-## Step 4: Register the Model and Routes
-
-Edit `api/src/index.ts` and add:
-
-```typescript
-import './apps/blog/models';
-import blogRoutes from './apps/blog/routes';
-```
-
-Then register the routes:
-
-```typescript
-await fastify.register(blogRoutes);
-```
-
-## Step 5: Start the API
+## Step 4: Start the API
 
 ```bash
 cd api
 npm run dev
 ```
 
-Because the model was imported and registered with `@registerAdmin(...)`:
+Because of the **Auto-Discovery Engine**, your model and routes are automatically loaded!
+Because the model was registered with `@registerAdmin(...)`:
 
 - its table will be created on startup
 - default admin permissions will be created
 - the admin can discover it
+- the fastify plugin exported in `routes.ts` is automatically registered
 
-## Step 6: Create an Admin User
+## Step 5: Create an Admin User
 
 ```bash
 cd api
@@ -149,7 +136,7 @@ Open:
 
 After logging in, you should see `Blog Posts` in the admin sidebar.
 
-## Step 7: Test the Public API
+## Step 6: Test the Public API
 
 Example requests:
 
@@ -163,7 +150,7 @@ curl -X POST http://localhost:8000/api/posts ^
   -d "{\"title\":\"Hello\",\"slug\":\"hello\",\"content\":\"First post\",\"published\":true}"
 ```
 
-## Step 8: Fetch It From Your Public App
+## Step 7: Fetch It From Your Public App
 
 Example frontend request:
 
@@ -175,6 +162,49 @@ const result = await response.json();
 
 console.log(result.data);
 ```
+
+## Step 8: Populating Initial Data (Database Seeding)
+
+To make developer onboarding or local environment setup plug-and-play, NextAdmin features an **Auto-Discovery Seeder Engine**. 
+
+If a file named `seed.ts` or `seed.js` is found directly inside your modular app directory (e.g., `api/src/apps/[appName]/seed.ts`), the framework will dynamically import it on startup and run its default exported function.
+
+### Writing a Custom Seeder
+
+Create a file named `api/src/apps/blog/seed.ts` to populate initial data:
+
+```typescript
+import { BlogPost } from './models';
+import logger from '../../core/logger';
+
+export default async function seedBlog() {
+  logger.info('Checking if Blog app needs seeding...');
+
+  // 1. Prevent duplicate seeding
+  const count = await BlogPost.objects.count();
+  if (count > 0) {
+    logger.info('Blog app already has posts, skipping seeding.');
+    return;
+  }
+
+  logger.info('Seeding sample blog data...');
+
+  // 2. Instantiate and save models
+  const post = new BlogPost() as any;
+  post.title = 'Getting Started with NextAdmin';
+  post.slug = 'getting-started-with-nextadmin';
+  post.content = 'This post was automatically populated by the NextAdmin Seeder!';
+  post.published = true;
+  await post.save();
+
+  logger.info('✓ Seeding complete: Getting Started with NextAdmin');
+}
+```
+
+Every time you launch the backend API server with `npm run dev`, it will:
+1. Initialize the SQLite database.
+2. Scan all app directories.
+3. Automatically execute your `seedBlog()` export if the model table is empty!
 
 ## Step 9: Understand the Split
 

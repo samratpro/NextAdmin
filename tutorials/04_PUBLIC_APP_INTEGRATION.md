@@ -1,4 +1,4 @@
-﻿# Public App Integration
+# Public App Integration
 
 This guide explains how to connect your own user-facing app to NextAdmin without mixing it into the admin panel.
 
@@ -237,7 +237,7 @@ Example:
 - `api/src/apps/blog/routes.ts`
 - `api/src/apps/blog/service.ts`
 
-Then your public app consumes those routes, while the admin can manage the same models if you register them with `@registerAdmin(...)` and import the model file in `api/src/index.ts`.
+Then your public app consumes those routes, while the admin can manage the same models if you register them with `@registerAdmin(...)` and place them in the correct auto-discovered folder path.
 
 Example separation:
 
@@ -332,7 +332,7 @@ Then verification and password-reset emails may point to the wrong frontend.
 
 `@registerAdmin(...)` makes a model visible in the admin UI. It does not automatically create your product-facing endpoints.
 
-Your public API routes still need to be registered explicitly in `api/src/index.ts`.
+Your public API routes still need to be placed in `routes.ts` within your app folder to be auto-discovered.
 
 ## Practical Rule of Thumb
 

@@ -223,6 +223,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             for (const key of excluded) {
                 delete data[key];
             }
+            // Strip password hashes from response data for security
+            for (const key of Object.keys(data)) {
+                if (key.toLowerCase().includes('password')) {
+                    data[key] = '';
+                }
+            }
             return data;
         });
 
@@ -278,6 +284,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         const excluded = metadata.adminOptions.excludeFields || [];
         for (const key of excluded) {
             delete data[key];
+        }
+        // Strip password hashes from response data for security
+        for (const key of Object.keys(data)) {
+            if (key.toLowerCase().includes('password')) {
+                data[key] = '';
+            }
         }
         reply.send({ data });
     });

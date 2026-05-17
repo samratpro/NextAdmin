@@ -1,46 +1,16 @@
-﻿# Removing the Built-in Blog Feature
+# Removing the Built-in Blog Feature
 
 NextAdmin comes with a simple Blog system (**Categories** and **Blog Posts**) by default to help you get started quickly. If you don't need this feature, you can remove it in a few simple steps.
 
-## Step 1: Remove API registration
-Open `api/src/index.ts` and remove the following sections:
-
-### 1. Remove Imports (Lines ~39-40)
-```typescript
-// Remove these two lines
-import blogRoutes from './apps/blog/routes';
-import { Category, BlogPost } from './apps/blog/models';
-```
-
-### 2. Remove Table Creation (Line ~66)
-Modify the loop in `initializeDatabase` to remove `Category` and `BlogPost`:
-```typescript
-// Before
-for (const model of [...coreModels, Category, BlogPost]) {
-  await model.createTable();
-}
-
-// After
-for (const model of coreModels) {
-  await model.createTable();
-}
-```
-
-### 3. Remove Route Registration (Line ~188)
-```typescript
-// Remove this line
-await fastify.register(blogRoutes);
-```
-
-## Step 2: Delete the Blog App directory
-Delete the entire `api/src/apps/blog` directory to completely remove the logic.
+## Step 1: Delete the Blog App directory
+Delete the entire `api/src/apps/blog` directory to completely remove the logic. Because NextAdmin uses an Auto-Discovery Engine, simply deleting the folder is enough to unregister all models and routes.
 
 ```bash
 # Example command
 rm -rf api/src/apps/blog
 ```
 
-## Step 3: Remove Database Tables (Optional)
+## Step 2: Remove Database Tables (Optional)
 If you have already started the server once, the tables `blog_categories` and `blog_posts` will have been created in your database. You can manually drop these tables using your database client.
 
 ```sql
@@ -48,7 +18,7 @@ DROP TABLE blog_posts;
 DROP TABLE blog_categories;
 ```
 
-## Step 4: Verification
+## Step 3: Verification
 Restart your API server. The Blog models should no longer appear in the Admin Dashboard, and any blog-related endpoints will no longer be available.
 
 > [!NOTE]

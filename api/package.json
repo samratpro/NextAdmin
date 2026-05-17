@@ -15,6 +15,7 @@
     "makemigrations": "tsx src/cli/makemigrations.ts",
     "create-user": "tsx src/cli/create_user.ts",
     "createsuperuser": "tsx src/cli/create_user.ts",
+    "verify-admin": "tsx src/cli/verify_admin.ts",
     "startapp": "tsx src/cli/create_app.ts",
     "test": "vitest run",
     "test:watch": "vitest",

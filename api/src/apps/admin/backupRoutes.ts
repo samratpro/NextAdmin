@@ -450,7 +450,7 @@ function describeScheduleLog(config: BackupScheduleConfig): string {
   }
 }
 
-type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql' | 'seo-only';
+type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql' | 'assets-only';
 
 interface DiscoveredDb {
   name: string;
@@ -548,12 +548,12 @@ function discoverDatabases(): DiscoveredDb[] {
   const engine = settings.database.engine as DbEngine;
   const results: DiscoveredDb[] = [];
 
-  // Add SEO virtual "database" module
+  // Add Assets virtual "database" module
   results.push({
-    name: 'SEO Assets & Metadata',
-    path: '__seo__',
+    name: 'App Assets & Data',
+    path: '__assets__',
     sizeBytes: -1,
-    engine: 'seo-only',
+    engine: 'assets-only',
   });
 
   if (SERVER_ENGINES.includes(engine)) {
@@ -719,13 +719,13 @@ async function restoreMssqlBackup(srcPath: string): Promise<string> {
 // ─── Unified dispatch helpers ─────────────────────────────────────────────────
 
 /** Returns { ext, label } for the backup file to be created */
-function backupMeta(engine: DbEngine | 'seo-only'): { ext: string; label: string } {
+function backupMeta(engine: DbEngine | 'assets-only'): { ext: string; label: string } {
   switch (engine) {
     case 'postgresql': return { ext: '.tar.gz', label: 'postgres' };
     case 'mysql':      return { ext: '.tar.gz', label: 'mysql'    };
     case 'mariadb':    return { ext: '.tar.gz', label: 'mariadb'  };
     case 'mssql':      return { ext: '.tar.gz', label: 'mssql'    };
-    case 'seo-only':   return { ext: '.tar.gz', label: 'seo-only' };
+    case 'assets-only':return { ext: '.tar.gz', label: 'assets' };
     default:           return { ext: '.tar.gz', label: 'sqlite'   };
   }
 }
@@ -735,8 +735,8 @@ async function dispatchBackup(db: DiscoveredDb, destPath: string) {
   fs.mkdirSync(tmpDir, { recursive: true });
 
   try {
-    // 1. Database backup (skip for SEO-only)
-    if (db.engine !== 'seo-only') {
+    // 1. Database backup (skip for assets-only)
+    if (db.engine !== 'assets-only') {
       const dbBackupFile = 'database.bak';
       const dbBackupPath = path.join(tmpDir, dbBackupFile);
       switch (db.engine) {
@@ -748,20 +748,30 @@ async function dispatchBackup(db: DiscoveredDb, destPath: string) {
       }
     }
 
-    // 2. SEO Data (if exists)
-    const seoDataDir = 'src/apps/seo_data';
-    const seoDataAbs = path.resolve(process.cwd(), seoDataDir);
-    if (fs.existsSync(seoDataAbs)) {
-      const target = path.join(tmpDir, 'seo_data');
-      fs.cpSync(seoDataAbs, target, { recursive: true });
+    // 2. Discover App Data (*_data in src/apps)
+    const appsDir = path.resolve(process.cwd(), 'src/apps');
+    if (fs.existsSync(appsDir)) {
+      const appDirs = fs.readdirSync(appsDir);
+      for (const dir of appDirs) {
+        if (dir.endsWith('_data')) {
+          const dataAbs = path.join(appsDir, dir);
+          const target = path.join(tmpDir, dir);
+          fs.cpSync(dataAbs, target, { recursive: true });
+        }
+      }
     }
 
-    // 3. SEO Uploads (if exists)
-    const seoUploadsDir = 'public/uploads/seo';
-    const seoUploadsAbs = path.resolve(process.cwd(), seoUploadsDir);
-    if (fs.existsSync(seoUploadsAbs)) {
-      const target = path.join(tmpDir, 'seo_uploads');
-      fs.cpSync(seoUploadsAbs, target, { recursive: true });
+    // 3. Discover Public Uploads
+    const uploadsDir = path.resolve(process.cwd(), 'public/uploads');
+    if (fs.existsSync(uploadsDir)) {
+      const uploadDirs = fs.readdirSync(uploadsDir);
+      for (const dir of uploadDirs) {
+        const uploadAbs = path.join(uploadsDir, dir);
+        if (fs.statSync(uploadAbs).isDirectory()) {
+          const target = path.join(tmpDir, 'public_uploads', dir);
+          fs.cpSync(uploadAbs, target, { recursive: true });
+        }
+      }
     }
 
     // 4. Bundle into tarball
@@ -773,25 +783,35 @@ async function dispatchBackup(db: DiscoveredDb, destPath: string) {
   }
 }
 
-async function dispatchSeoBackup(destPath: string) {
-  const tmpDir = path.join(BACKUP_DIR, `_tmp_seo_bak_${Date.now()}`);
+async function dispatchAssetsBackup(destPath: string) {
+  const tmpDir = path.join(BACKUP_DIR, `_tmp_assets_bak_${Date.now()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
   try {
-    // 1. SEO Data
-    const seoDataDir = 'src/apps/seo_data';
-    const seoDataAbs = path.resolve(process.cwd(), seoDataDir);
-    if (fs.existsSync(seoDataAbs)) {
-      const target = path.join(tmpDir, 'seo_data');
-      fs.cpSync(seoDataAbs, target, { recursive: true });
+    // 1. App Data
+    const appsDir = path.resolve(process.cwd(), 'src/apps');
+    if (fs.existsSync(appsDir)) {
+      const appDirs = fs.readdirSync(appsDir);
+      for (const dir of appDirs) {
+        if (dir.endsWith('_data')) {
+          const dataAbs = path.join(appsDir, dir);
+          const target = path.join(tmpDir, dir);
+          fs.cpSync(dataAbs, target, { recursive: true });
+        }
+      }
     }
 
-    // 2. SEO Uploads
-    const seoUploadsDir = 'public/uploads/seo';
-    const seoUploadsAbs = path.resolve(process.cwd(), seoUploadsDir);
-    if (fs.existsSync(seoUploadsAbs)) {
-      const target = path.join(tmpDir, 'seo_uploads');
-      fs.cpSync(seoUploadsAbs, target, { recursive: true });
+    // 2. Public Uploads
+    const uploadsDir = path.resolve(process.cwd(), 'public/uploads');
+    if (fs.existsSync(uploadsDir)) {
+      const uploadDirs = fs.readdirSync(uploadsDir);
+      for (const dir of uploadDirs) {
+        const uploadAbs = path.join(uploadsDir, dir);
+        if (fs.statSync(uploadAbs).isDirectory()) {
+          const target = path.join(tmpDir, 'public_uploads', dir);
+          fs.cpSync(uploadAbs, target, { recursive: true });
+        }
+      }
     }
 
     // 3. Compress
@@ -831,20 +851,27 @@ async function dispatchRestore(db: DiscoveredDb, srcPath: string): Promise<strin
         }
       }
 
-      // 2. Restore SEO Data
-      const seoDataTmp = path.join(tmpDir, 'seo_data');
-      const seoDataDest = path.resolve(process.cwd(), 'src/apps/seo_data');
-      if (fs.existsSync(seoDataTmp)) {
-        fs.mkdirSync(seoDataDest, { recursive: true });
-        fs.cpSync(seoDataTmp, seoDataDest, { recursive: true });
+      // 2. Restore App Data (*_data)
+      const items = fs.readdirSync(tmpDir);
+      for (const item of items) {
+        if (item.endsWith('_data')) {
+          const source = path.join(tmpDir, item);
+          const dest = path.resolve(process.cwd(), 'src/apps', item);
+          fs.mkdirSync(dest, { recursive: true });
+          fs.cpSync(source, dest, { recursive: true });
+        }
       }
 
-      // 3. Restore SEO Uploads
-      const seoUploadsTmp = path.join(tmpDir, 'seo_uploads');
-      const seoUploadsDest = path.resolve(process.cwd(), 'public/uploads/seo');
-      if (fs.existsSync(seoUploadsTmp)) {
-        fs.mkdirSync(seoUploadsDest, { recursive: true });
-        fs.cpSync(seoUploadsTmp, seoUploadsDest, { recursive: true });
+      // 3. Restore Public Uploads
+      const publicUploadsTmp = path.join(tmpDir, 'public_uploads');
+      if (fs.existsSync(publicUploadsTmp)) {
+        const uploadDirs = fs.readdirSync(publicUploadsTmp);
+        for (const dir of uploadDirs) {
+          const source = path.join(publicUploadsTmp, dir);
+          const dest = path.resolve(process.cwd(), 'public/uploads', dir);
+          fs.mkdirSync(dest, { recursive: true });
+          fs.cpSync(source, dest, { recursive: true });
+        }
       }
 
       return safetyName;
@@ -1202,12 +1229,12 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     const startedAt = Date.now();
     
     ensureBackupDir();
-    const { ext, label } = backupMeta('seo-only');
+    const { ext, label } = backupMeta('assets-only');
     const backupName = `${formatTimestamp(new Date())}_${label}${ext}`;
     const backupPath = path.join(BACKUP_DIR, backupName);
 
     try {
-      await dispatchSeoBackup(backupPath);
+      await dispatchAssetsBackup(backupPath);
       const sizeBytes = fs.statSync(backupPath).size;
       
       let uploadedDrive = false;
