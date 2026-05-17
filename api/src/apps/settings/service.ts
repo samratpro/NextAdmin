@@ -40,8 +40,9 @@ class SiteSettingsService {
     if (this.cache) return this.cache;
     try {
       const raw = fs.readFileSync(SETTINGS_FILE, 'utf8');
-      this.cache = { ...DEFAULTS, ...JSON.parse(raw) };
-      return this.cache;
+      const settings = { ...DEFAULTS, ...JSON.parse(raw) };
+      this.cache = settings;
+      return settings;
     } catch {
       return { ...DEFAULTS };
     }
