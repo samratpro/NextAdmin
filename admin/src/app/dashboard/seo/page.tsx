@@ -468,7 +468,7 @@ export default function SeoManagementPage() {
                                                                     <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-indigo-600 transition-colors">{page.metaTitle || 'Untitled Page'}</h3>
                                                                 </div>
                                                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0">
-                                                                    <button onClick={() => setEditingPage({ ogType: 'website', twitterCardType: 'summary_large_image', noFollow: false, ...page })} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
+                                                                    <button onClick={() => setEditingPage({ ...page, ogType: page.ogType || 'website', twitterCardType: page.twitterCardType || 'summary_large_image', noFollow: page.noFollow ?? false })} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
                                                                         ✏️
                                                                     </button>
                                                                     <button onClick={() => handleDeletePage(page.pageSlug)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
