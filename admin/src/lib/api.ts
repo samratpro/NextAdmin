@@ -21,7 +21,8 @@ class ApiClient {
       async (error) => {
         const originalRequest = error.config;
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        const isAuthRoute = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh');
+      if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
           originalRequest._retry = true;
 
           try {
@@ -223,6 +224,24 @@ class ApiClient {
     }>;
   }> {
     const response = await this.client.get('/api/admin/backup/log');
+    return response.data;
+  }
+
+  // Site Settings
+  async getSiteSettings() {
+    return this.get('/api/admin/settings');
+  }
+
+  async updateSiteSettings(data: Record<string, string>) {
+    return this.put('/api/admin/settings', data);
+  }
+
+  async uploadSettingsFile(file: File, type: 'logo' | 'favicon') {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await this.client.post(`/api/admin/settings/upload?type=${type}`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   }
 

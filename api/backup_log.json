@@ -1,5 +1,16 @@
 [
   {
+    "at": "2026-05-16T21:00:00.618Z",
+    "trigger": "schedule",
+    "status": "success",
+    "file": "2026-05-17_03-00-00_seo-only.tar.gz",
+    "sizeBytes": 3293841,
+    "durationMs": 185,
+    "uploadedDrive": false,
+    "deletedLocal": 6,
+    "deletedDrive": 0
+  },
+  {
     "at": "2026-05-09T21:13:25.665Z",
     "trigger": "manual",
     "status": "success",

@@ -11,7 +11,7 @@ import bcrypt from 'bcryptjs';
   listDisplay: ['id', 'username', 'email', 'isActive', 'isStaff', 'isSuperuser'],
   searchFields: ['username', 'email', 'firstName', 'lastName'],
   filterFields: ['isActive', 'isStaff', 'isSuperuser'],
-  excludeFields: ['password']
+  excludeFields: []
 })
 export class User extends Model {
   username = new CharField({ unique: true, maxLength: 150 });

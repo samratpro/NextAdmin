@@ -316,7 +316,9 @@ rm -rf /www/server/nginx/proxy_cache_dir/*
 ```
 
 ### Full redeploy
-
+```bash
+git pull https://samratpro:git_secrect_token@github.com/username/repo_name.git && docker-compose down && docker-compose up -d
+```
 ```bash
 git pull
 docker-compose build --no-cache

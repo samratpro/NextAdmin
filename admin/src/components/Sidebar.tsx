@@ -133,6 +133,16 @@ function SidebarContent({ className = '' }: SidebarProps) {
                 </button>
                 {isSuperuser && (
                     <button
+                        onClick={() => router.push('/dashboard/settings')}
+                        className={`w-full px-3 py-2 text-sm text-left rounded transition-colors ${
+                            pathname === '/dashboard/settings' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                    >
+                        🎨 Site Settings
+                    </button>
+                )}
+                {isSuperuser && (
+                    <button
                         onClick={() => router.push('/dashboard/backup')}
                         className={`w-full px-3 py-2 text-sm text-left rounded transition-colors ${
                             pathname === '/dashboard/backup' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'

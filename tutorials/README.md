@@ -20,6 +20,7 @@ If you are new to the project, read in this order:
 14. [Removing Blog Feature](./14_REMOVING_BLOG_FEATURE.md)
 15. [Production Deployment](./15_PRODUCTION_DEPLOYMENT.md)
 16. [CI/CD with GitHub Actions](./16_CICD_GITHUB_ACTIONS.md)
+17. [Site Settings](./17_SITE_SETTINGS.md)
 
 ---
 
@@ -34,6 +35,7 @@ If you are new to the project, read in this order:
 | Set up SMTP for email verification and password reset | [08_EMAIL_CONFIGURATION.md](./08_EMAIL_CONFIGURATION.md) |
 | Deploy to a VPS with Docker | [15_PRODUCTION_DEPLOYMENT.md](./15_PRODUCTION_DEPLOYMENT.md) |
 | Set up auto-deploy from GitHub | [16_CICD_GITHUB_ACTIONS.md](./16_CICD_GITHUB_ACTIONS.md) |
+| Manage logo, favicon, title, tagline from the admin | [17_SITE_SETTINGS.md](./17_SITE_SETTINGS.md) |
 
 ---
 

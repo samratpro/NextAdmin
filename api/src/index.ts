@@ -15,6 +15,7 @@ import { ModelRegistry } from './core/ModelRegistry';
 import { requireBasicAuthSuperuser } from './middleware/auth';
 import permissionService from './apps/auth/permissionService';
 import seoRoutes from './apps/seo/routes';
+import settingsRoutes from './apps/settings/routes';
 
 // Import models
 import {
@@ -187,6 +188,7 @@ async function start() {
     await fastify.register(backupRoutes);
     await fastify.register(blogRoutes);
     await fastify.register(seoRoutes);
+    await fastify.register(settingsRoutes);
 
     // Health check
     fastify.get('/health', {
