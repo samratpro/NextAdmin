@@ -115,8 +115,20 @@ function DatabasesTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg:
     }
   };
 
-  const handleDownload = (db: DbFile) => {
-    window.open(api.getDownloadDbUrl(db.path), '_blank');
+  const handleDownload = async (db: DbFile) => {
+    try {
+      const { blob, filename } = await api.downloadDbFile(db.path);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      onNotify('error', 'Download failed');
+    }
   };
 
   if (loading) return <p className="text-gray-500 py-8 text-center">Loading databases...</p>;
@@ -224,8 +236,20 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
     }
   };
 
-  const handleDownload = (b: BackupFile) => {
-    window.open(api.getBackupFileDownloadUrl(b.filename), '_blank');
+  const handleDownload = async (b: BackupFile) => {
+    try {
+      const blob = await api.downloadBackupFile(b.filename);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = b.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      onNotify('error', 'Download failed');
+    }
   };
 
   const handleConnectDrive = async () => {

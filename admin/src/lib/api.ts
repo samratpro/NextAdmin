@@ -116,12 +116,23 @@ class ApiClient {
     return response.data;
   }
 
-  getDownloadDbUrl(dbPath: string): string {
-    return `${API_URL}/api/admin/backup/download-db?dbPath=${encodeURIComponent(dbPath)}`;
+  async downloadBackupFile(filename: string): Promise<Blob> {
+    const response = await this.client.get(
+      `/api/admin/backup/files/${encodeURIComponent(filename)}/download`,
+      { responseType: 'blob' }
+    );
+    return response.data;
   }
 
-  getBackupFileDownloadUrl(filename: string): string {
-    return `${API_URL}/api/admin/backup/files/${encodeURIComponent(filename)}/download`;
+  async downloadDbFile(dbPath: string): Promise<{ blob: Blob; filename: string }> {
+    const response = await this.client.get(
+      `/api/admin/backup/download-db?dbPath=${encodeURIComponent(dbPath)}`,
+      { responseType: 'blob' }
+    );
+    const disposition = response.headers['content-disposition'] ?? '';
+    const match = disposition.match(/filename[^;=\n]*=["']?([^"';\n]+)/i);
+    const filename = match?.[1]?.trim() || dbPath.split('/').pop() || 'db-download';
+    return { blob: response.data, filename };
   }
 
   async deleteBackup(filename: string) {
