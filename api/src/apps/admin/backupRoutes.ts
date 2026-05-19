@@ -776,8 +776,8 @@ async function dispatchBackup(db: DiscoveredDb, destPath: string) {
 
     // 4. Bundle into tarball
     // Use -C to change to tmpDir and bundle everything inside
-    // Use --force-local to prevent tar from treating C: as a remote host
-    await execAsync(`tar --force-local -czf "${destPath}" -C "${tmpDir}" .`);
+    const forceLocal = process.platform === 'win32' ? '--force-local ' : '';
+    await execAsync(`tar ${forceLocal}-czf "${destPath}" -C "${tmpDir}" .`);
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
@@ -815,15 +815,8 @@ async function dispatchAssetsBackup(destPath: string) {
     }
 
     // 3. Compress
-    const tarArgs = [
-      '-czf',
-      `"${destPath}"`,
-      '--force-local',
-      '-C',
-      `"${tmpDir}"`,
-      '.'
-    ];
-    await execAsync(`tar ${tarArgs.join(' ')}`);
+    const forceLocal = process.platform === 'win32' ? '--force-local ' : '';
+    await execAsync(`tar ${forceLocal}-czf "${destPath}" -C "${tmpDir}" .`);
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
@@ -836,7 +829,8 @@ async function dispatchRestore(db: DiscoveredDb, srcPath: string): Promise<strin
     fs.mkdirSync(tmpDir, { recursive: true });
 
     try {
-      await execAsync(`tar --force-local -xzf "${srcPath}" -C "${tmpDir}"`);
+      const forceLocal = process.platform === 'win32' ? '--force-local ' : '';
+      await execAsync(`tar ${forceLocal}-xzf "${srcPath}" -C "${tmpDir}"`);
 
       // 1. Restore Database (if present)
       const dbBackupPath = path.join(tmpDir, 'database.bak');
@@ -1293,7 +1287,8 @@ export default async function backupRoutes(fastify: FastifyInstance) {
 
       // 2. Extract
       fs.mkdirSync(tmpDir, { recursive: true });
-      await execAsync(`tar -xzf "${tmpFile}" --force-local -C "${tmpDir}"`);
+      const forceLocal = process.platform === 'win32' ? '--force-local ' : '';
+      await execAsync(`tar ${forceLocal}-xzf "${tmpFile}" -C "${tmpDir}"`);
 
       // 3. Restore SEO Data
       const extSeoData = path.join(tmpDir, 'seo_data');
