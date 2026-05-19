@@ -406,3 +406,12 @@ No conflict. The `postgres` container in this setup has no `ports:` mapping — 
 rm -rf /www/server/nginx/proxy_cache_dir/*
 /www/server/nginx/sbin/nginx -s reload
 ```
+### Note 
+aaPanel Nginx Running
+```bash
+grep -R "proxy_pass" /www/server/panel/vhost/nginx/
+```
+VPS not using Panel
+```bash
+grep -R "proxy_pass" /etc/nginx/
+```

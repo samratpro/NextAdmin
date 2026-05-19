@@ -96,9 +96,7 @@ async function loadAppModels() {
         await import(`./apps/${app}/models`);
         logger.info(`Auto-discovered models for app: ${app}`);
       } catch (e: any) {
-        if (e.code !== 'MODULE_NOT_FOUND' && e.code !== 'ERR_MODULE_NOT_FOUND') {
-          logger.error(`Error loading models for app ${app}:`, e);
-        }
+        logger.error(`Error loading models for app ${app}:`, e);
       }
     }
   }

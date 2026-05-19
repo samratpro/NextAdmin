@@ -28,7 +28,7 @@ describe('authStore.login', () => {
     });
 
     const { result } = renderHook(() => useAuthStore());
-    let status: 'ok' | 'invalid' | 'forbidden';
+    let status: 'ok' | 'invalid' | 'forbidden' | 'network_error';
 
     await act(async () => {
       status = await result.current.login('a@test.com', 'password');
@@ -43,7 +43,7 @@ describe('authStore.login', () => {
     mockApi.login.mockResolvedValue({ success: false });
 
     const { result } = renderHook(() => useAuthStore());
-    let status: 'ok' | 'invalid' | 'forbidden';
+    let status: 'ok' | 'invalid' | 'forbidden' | 'network_error';
 
     await act(async () => {
       status = await result.current.login('bad@test.com', 'wrong');
@@ -61,7 +61,7 @@ describe('authStore.login', () => {
     mockApi.post.mockResolvedValue({ success: true });
 
     const { result } = renderHook(() => useAuthStore());
-    let status: 'ok' | 'invalid' | 'forbidden';
+    let status: 'ok' | 'invalid' | 'forbidden' | 'network_error';
 
     await act(async () => {
       status = await result.current.login('b@test.com', 'password');

@@ -327,6 +327,7 @@ Run the rebuild command in the `api` directory using your current Node version:
 ```bash
 cd api
 npm rebuild better-sqlite3
+npx npm rebuild
 ```
 
 If that doesn't work, perform a clean install:
