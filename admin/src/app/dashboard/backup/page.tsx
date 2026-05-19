@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql' | 'seo-only';
+type DbEngine = 'sqlite' | 'postgresql' | 'mysql' | 'mariadb' | 'mssql' | 'seo-only' | 'assets-only';
 
 interface DbFile {
   name: string;
