@@ -943,7 +943,7 @@ export default async function backupRoutes(fastify: FastifyInstance) {
   }, async (_req, reply) => {
     ensureBackupDir();
     const files = fs.readdirSync(BACKUP_DIR)
-      .filter(f => f.endsWith('.sqlite3') || f.endsWith('.dump') || f.endsWith('.sql') || f.endsWith('.bak'))
+      .filter(f => f.endsWith('.sqlite3') || f.endsWith('.dump') || f.endsWith('.sql') || f.endsWith('.bak') || f.endsWith('.tar.gz'))
       .map(f => {
         const stat = fs.statSync(path.join(BACKUP_DIR, f));
         return { filename: f, sizeBytes: stat.size, createdAt: stat.birthtime.toISOString(), modifiedAt: stat.mtime.toISOString() };
