@@ -412,7 +412,7 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
                 {backups.map(b => (
                   <tr key={b.filename} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-xs text-gray-800 max-w-xs truncate" title={b.filename}>
-                      {b.filename.startsWith('pre-restore_') ? (
+                      {b.filename.startsWith('safety_') ? (
                         <span className="flex items-center gap-1.5">
                           <Badge color="bg-yellow-100 text-yellow-700">safety</Badge>
                           {b.filename}
@@ -429,7 +429,7 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
                         >
                           Download
                         </button>
-                        {!b.filename.startsWith('pre-restore_') && (
+                        {!b.filename.startsWith('safety_') && (
                           <button
                             onClick={() => handleRestoreFromServer(b)}
                             disabled={restoringFile === b.filename}

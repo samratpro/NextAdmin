@@ -292,7 +292,7 @@ function listBackupFiles(): { name: string; mtime: number }[] {
   if (!fs.existsSync(BACKUP_DIR)) return [];
   return fs.readdirSync(BACKUP_DIR)
     .filter(f =>
-      !f.startsWith('pre-restore_') &&
+      !f.startsWith('safety_') &&
       !f.startsWith('_') &&
       (f.endsWith('.sqlite3') || f.endsWith('.dump') || f.endsWith('.sql') || f.endsWith('.bak') || f.endsWith('.tar.gz'))
     )
@@ -332,7 +332,7 @@ async function runScheduledBackup(
 
   ensureBackupDir();
   const { ext, label } = backupMeta(db.engine);
-  const backupName = `${formatTimestamp(new Date())}_${label}${ext}`;
+  const backupName = `${label}_${formatTimestamp(new Date())}${ext}`;
   const backupPath = path.join(BACKUP_DIR, backupName);
 
   let deletedLocal = 0;
@@ -641,7 +641,7 @@ async function createMssqlBackup(destPath: string) {
 
 async function restoreSqliteBackup(srcPath: string, targetPath: string): Promise<string> {
   const configuredPath = path.resolve(process.cwd(), settings.database.path || './db.sqlite3');
-  const safetyName = `pre-restore_${formatTimestamp(new Date())}_${path.basename(targetPath)}`;
+  const safetyName = `safety_sqlite_${formatTimestamp(new Date())}_${path.basename(targetPath)}`;
   const safetyPath = path.join(BACKUP_DIR, safetyName);
   if (fs.existsSync(targetPath)) {
     const adapter = DatabaseManager.getAdapter() as any;
@@ -672,7 +672,7 @@ async function restorePostgresBackup(srcPath: string): Promise<string> {
   const { user, password, host, port, database } = parseDbUrl(settings.database.url!);
   const portFlag = port ? `-p ${port}` : '';
   const env = { ...process.env, PGPASSWORD: password };
-  const safetyName = `pre-restore_${formatTimestamp(new Date())}_postgres.dump`;
+  const safetyName = `safety_postgres_${formatTimestamp(new Date())}.dump`;
   await execAsync(
     `pg_dump -h "${host}" ${portFlag} -U "${user}" -F c -f "${path.join(BACKUP_DIR, safetyName)}" "${database}"`,
     { env, timeout: 600_000 },
@@ -687,7 +687,7 @@ async function restorePostgresBackup(srcPath: string): Promise<string> {
 async function restoreMysqlBackup(srcPath: string): Promise<string> {
   const { user, password, host, port, database } = parseDbUrl(settings.database.url!);
   const portFlag = port ? `-P ${port}` : '';
-  const safetyName = `pre-restore_${formatTimestamp(new Date())}_mysql.sql`;
+  const safetyName = `safety_mysql_${formatTimestamp(new Date())}.sql`;
   await execAsync(
     `mysqldump --single-transaction -h "${host}" ${portFlag} -u "${user}" -p"${password}" "${database}" > "${path.join(BACKUP_DIR, safetyName)}"`
   );
@@ -700,7 +700,7 @@ async function restoreMysqlBackup(srcPath: string): Promise<string> {
 async function restoreMssqlBackup(srcPath: string): Promise<string> {
   const { user, password, host, port, database } = parseDbUrl(settings.database.url!);
   const server = port ? `${host},${port}` : host;
-  const safetyName = `pre-restore_${formatTimestamp(new Date())}_mssql.bak`;
+  const safetyName = `safety_mssql_${formatTimestamp(new Date())}.bak`;
   const mssqlSafetyPath = process.env.MSSQL_BACKUP_DIR
     ? path.join(process.env.MSSQL_BACKUP_DIR, safetyName)
     : path.join(BACKUP_DIR, safetyName);
@@ -721,12 +721,12 @@ async function restoreMssqlBackup(srcPath: string): Promise<string> {
 /** Returns { ext, label } for the backup file to be created */
 function backupMeta(engine: DbEngine | 'assets-only'): { ext: string; label: string } {
   switch (engine) {
-    case 'postgresql': return { ext: '.tar.gz', label: 'postgres' };
-    case 'mysql':      return { ext: '.tar.gz', label: 'mysql'    };
-    case 'mariadb':    return { ext: '.tar.gz', label: 'mariadb'  };
-    case 'mssql':      return { ext: '.tar.gz', label: 'mssql'    };
-    case 'assets-only':return { ext: '.tar.gz', label: 'assets' };
-    default:           return { ext: '.tar.gz', label: 'sqlite'   };
+    case 'postgresql': return { ext: '.tar.gz', label: 'postgres_full_backup' };
+    case 'mysql':      return { ext: '.tar.gz', label: 'mysql_full_backup'    };
+    case 'mariadb':    return { ext: '.tar.gz', label: 'mariadb_full_backup'  };
+    case 'mssql':      return { ext: '.tar.gz', label: 'mssql_full_backup'    };
+    case 'assets-only':return { ext: '.tar.gz', label: 'assets_backup'        };
+    default:           return { ext: '.tar.gz', label: 'sqlite_full_backup'   };
   }
 }
 
@@ -928,7 +928,7 @@ export default async function backupRoutes(fastify: FastifyInstance) {
 
     ensureBackupDir();
     const { ext, label } = backupMeta(db.engine);
-    const backupName = `${formatTimestamp(new Date())}_${label}${ext}`;
+    const backupName = `${label}_${formatTimestamp(new Date())}${ext}`;
     const backupPath = path.join(BACKUP_DIR, backupName);
 
     try {
@@ -1261,7 +1261,7 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     
     ensureBackupDir();
     const { ext, label } = backupMeta('assets-only');
-    const backupName = `${formatTimestamp(new Date())}_${label}${ext}`;
+    const backupName = `${label}_${formatTimestamp(new Date())}${ext}`;
     const backupPath = path.join(BACKUP_DIR, backupName);
 
     try {
