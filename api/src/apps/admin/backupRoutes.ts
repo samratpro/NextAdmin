@@ -748,8 +748,10 @@ async function dispatchBackup(db: DiscoveredDb, destPath: string) {
       }
     }
 
-    // 2. Discover App Data (*_data in src/apps)
-    const appsDir = path.resolve(process.cwd(), 'src/apps');
+    // 2. Discover App Data (*_data dirs alongside the compiled routes)
+    // __dirname resolves to src/apps/admin (dev) or dist/apps/admin (Docker),
+    // so going up one level always reaches the correct apps directory.
+    const appsDir = path.resolve(__dirname, '..');
     if (fs.existsSync(appsDir)) {
       const appDirs = fs.readdirSync(appsDir);
       for (const dir of appDirs) {
@@ -775,7 +777,6 @@ async function dispatchBackup(db: DiscoveredDb, destPath: string) {
     }
 
     // 4. Bundle into tarball
-    // Use -C to change to tmpDir and bundle everything inside
     const forceLocal = process.platform === 'win32' ? '--force-local ' : '';
     await execAsync(`tar ${forceLocal}-czf "${destPath}" -C "${tmpDir}" .`);
   } finally {
@@ -788,8 +789,8 @@ async function dispatchAssetsBackup(destPath: string) {
   fs.mkdirSync(tmpDir, { recursive: true });
 
   try {
-    // 1. App Data
-    const appsDir = path.resolve(process.cwd(), 'src/apps');
+    // 1. App Data — same __dirname trick as dispatchBackup
+    const appsDir = path.resolve(__dirname, '..');
     if (fs.existsSync(appsDir)) {
       const appDirs = fs.readdirSync(appsDir);
       for (const dir of appDirs) {
@@ -845,12 +846,12 @@ async function dispatchRestore(db: DiscoveredDb, srcPath: string): Promise<strin
         }
       }
 
-      // 2. Restore App Data (*_data)
+      // 2. Restore App Data (*_data) — mirror the same __dirname path used in backup
       const items = fs.readdirSync(tmpDir);
       for (const item of items) {
         if (item.endsWith('_data')) {
           const source = path.join(tmpDir, item);
-          const dest = path.resolve(process.cwd(), 'src/apps', item);
+          const dest = path.resolve(__dirname, '..', item);
           fs.mkdirSync(dest, { recursive: true });
           fs.cpSync(source, dest, { recursive: true });
         }
@@ -1018,6 +1019,11 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     for await (const chunk of data.file) chunks.push(chunk);
     fs.writeFileSync(tmp, Buffer.concat(chunks));
 
+    if (fs.statSync(tmp).size === 0) {
+      fs.unlinkSync(tmp);
+      return reply.code(400).send({ error: 'Uploaded file is empty (0 bytes). The backup may be corrupt.' });
+    }
+
     const validationError = validateUpload(tmp, db.engine);
     if (validationError) {
       fs.unlinkSync(tmp);
@@ -1027,11 +1033,13 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     let safetyName: string;
     try {
       safetyName = await dispatchRestore(db, tmp);
+    } catch (err: any) {
+      return reply.code(500).send({ error: err?.message ?? 'Restore failed' });
     } finally {
       try { fs.unlinkSync(tmp); } catch {}
     }
 
-    reply.send({ success: true, message: 'Database restored successfully', safetyBackup: safetyName, engine: db.engine });
+    reply.send({ success: true, message: 'Database restored successfully', safetyBackup: safetyName!, engine: db.engine });
   });
 
   // 7. Delete a backup file
@@ -1295,34 +1303,34 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     const data = await request.file();
     if (!data) return reply.status(400).send({ error: 'No file uploaded' });
 
+    ensureBackupDir();
     const tmpFile = path.join(BACKUP_DIR, `_restore_seo_${Date.now()}.tar.gz`);
-    const tmpDir = path.join(BACKUP_DIR, `_extract_seo_${Date.now()}`);
-    
+    const tmpDir  = path.join(BACKUP_DIR, `_extract_seo_${Date.now()}`);
+
     try {
-      // 1. Save uploaded file
-      const writeStream = fs.createWriteStream(tmpFile);
-      await new Promise((resolve, reject) => {
-        data.file.pipe(writeStream);
-        writeStream.on('finish', () => resolve(undefined));
-        writeStream.on('error', reject);
-        data.file.on('error', reject);
-      });
+      // 1. Save uploaded file — pipeline handles backpressure and late stream errors cleanly
+      const { pipeline: streamPipeline } = await import('stream/promises');
+      await streamPipeline(data.file, fs.createWriteStream(tmpFile));
+
+      if (fs.statSync(tmpFile).size === 0) {
+        return reply.status(400).send({ error: 'Uploaded file is empty (0 bytes). The backup may be corrupt.' });
+      }
 
       // 2. Extract
       fs.mkdirSync(tmpDir, { recursive: true });
       const forceLocal = process.platform === 'win32' ? '--force-local ' : '';
       await execAsync(`tar ${forceLocal}-xzf "${tmpFile}" -C "${tmpDir}"`);
 
-      // 3. Restore SEO Data
+      // 3. Restore SEO Data — same __dirname-based path as the backup uses
       const extSeoData = path.join(tmpDir, 'seo_data');
       if (fs.existsSync(extSeoData)) {
-        const target = path.resolve(process.cwd(), 'src/apps/seo_data');
+        const target = path.resolve(__dirname, '..', 'seo_data');
         fs.mkdirSync(target, { recursive: true });
         fs.cpSync(extSeoData, target, { recursive: true });
       }
 
-      // 4. Restore SEO Uploads
-      const extSeoUploads = path.join(tmpDir, 'seo_uploads');
+      // 4. Restore SEO Uploads — backup stores them under public_uploads/seo/
+      const extSeoUploads = path.join(tmpDir, 'public_uploads', 'seo');
       if (fs.existsSync(extSeoUploads)) {
         const target = path.resolve(process.cwd(), 'public/uploads/seo');
         fs.mkdirSync(target, { recursive: true });
