@@ -8,6 +8,7 @@ export interface SiteSettings {
   faviconUrl: string;
   footerText: string;
   contactEmail: string;
+  phone: string;
   siteUrl: string;
   primaryColor: string;
 }
@@ -23,6 +24,7 @@ const DEFAULTS: SiteSettings = {
   faviconUrl: '',
   footerText: '',
   contactEmail: '',
+  phone: '',
   siteUrl: '',
   primaryColor: '#4f46e5',
 };

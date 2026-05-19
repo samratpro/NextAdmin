@@ -185,8 +185,12 @@ class SeoService {
 
   addRedirect(rule: Omit<RedirectRule, 'id' | 'createdAt'>): RedirectRule {
     const rules = this.getRedirects();
+    const from = rule.from.replace(/\/$/, '') || '/';
+    const existing = rules.find(r => r.from.replace(/\/$/, '') === from);
+    if (existing) throw new Error(`A redirect for "${rule.from}" already exists`);
     const newRule: RedirectRule = {
       ...rule,
+      from,
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: new Date().toISOString(),
     };
@@ -207,7 +211,11 @@ class SeoService {
     const config = this.getSitemapConfig();
     if (!config.enabled) return [];
 
-    const urls: string[] = [...this.listAllPageSeoSlugs()];
+    // Exclude pages marked noIndex — they should not appear in the sitemap
+    const urls: string[] = this.listAllPageSeoSlugs().filter(slug => {
+      const meta = this.getPageSeo(slug);
+      return !meta?.noIndex;
+    });
     urls.push(...(config.staticPaths || []).filter(Boolean));
 
     for (const pattern of (config.modelSlugs || [])) {

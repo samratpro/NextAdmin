@@ -1046,6 +1046,28 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     reply.code(204).send();
   });
 
+  // 7b. Restore directly from a stored backup file (no upload needed)
+  fastify.post('/api/admin/backup/files/:filename/restore', {
+    preHandler: requireSuperuser,
+    schema: { tags: ['Admin'], description: 'Restore database from a stored backup file', security: [{ bearerAuth: [] }] },
+  }, async (request, reply) => {
+    const safe = safeFilename((request.params as any).filename);
+    const filePath = path.join(BACKUP_DIR, safe);
+    if (!fs.existsSync(filePath)) return reply.code(404).send({ error: 'Backup file not found' });
+
+    const { dbPath } = request.body as { dbPath?: string };
+    const defaultPath = SERVER_ENGINES.includes(settings.database.engine as DbEngine)
+      ? (ENGINE_SENTINEL[settings.database.engine] ?? `__${settings.database.engine}__`)
+      : path.resolve(process.cwd(), settings.database.path || './db.sqlite3');
+    const resolvedPath = dbPath ?? defaultPath;
+
+    const db = resolveAllowedDb(resolvedPath);
+    if (!db) return reply.code(403).send({ error: 'Target database not found or not allowed' });
+
+    const safetyName = await dispatchRestore(db, filePath);
+    reply.send({ success: true, message: 'Database restored successfully', safetyBackup: safetyName, engine: db.engine });
+  });
+
   // 8. Google Drive status
   fastify.get('/api/admin/backup/drive/status', {
     preHandler: requireSuperuser,
@@ -1281,7 +1303,8 @@ export default async function backupRoutes(fastify: FastifyInstance) {
       const writeStream = fs.createWriteStream(tmpFile);
       await new Promise((resolve, reject) => {
         data.file.pipe(writeStream);
-        data.file.on('end', resolve);
+        writeStream.on('finish', () => resolve(undefined));
+        writeStream.on('error', reject);
         data.file.on('error', reject);
       });
 

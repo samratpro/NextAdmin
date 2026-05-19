@@ -28,7 +28,7 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
     preHandler: requireSuperuser,
   }, async (request, reply) => {
     const body = request.body as Record<string, any>;
-    const allowed = ['siteTitle', 'tagline', 'logoUrl', 'faviconUrl', 'footerText', 'contactEmail', 'siteUrl', 'primaryColor'];
+    const allowed = ['siteTitle', 'tagline', 'logoUrl', 'faviconUrl', 'footerText', 'contactEmail', 'phone', 'siteUrl', 'primaryColor'];
     const updates: Record<string, any> = {};
     for (const key of allowed) {
       if (body[key] !== undefined) updates[key] = body[key];

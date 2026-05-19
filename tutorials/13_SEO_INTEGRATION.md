@@ -73,14 +73,31 @@ Create once, import everywhere:
 // lib/seo.ts
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+/**
+ * Fetch page SEO metadata.
+ * Uses force-cache so the result is served from Next.js persistent disk cache
+ * after the first request — same speed as reading a static file.
+ * Use on-demand revalidation (Section 10) to push updates instantly.
+ */
 export async function fetchPageSeo(slug: string) {
   try {
     const res = await fetch(`${API}/api/seo/head?slug=${encodeURIComponent(slug)}`, {
-      next: { revalidate: 3600 },
+      cache: 'force-cache',
+      next: { tags: ['seo', `seo:${slug}`] },
     });
     return res.ok ? res.json() : null;
   } catch {
     return null;
+  }
+}
+
+/** Fetch sitemap frequency/priority configured in Admin → XML Sitemap. */
+export async function fetchSitemapConfig() {
+  try {
+    const res = await fetch(`${API}/api/seo/sitemap-config`, { cache: 'force-cache', next: { tags: ['seo'] } });
+    return res.ok ? res.json() : { frequency: 'weekly', priority: 0.8 };
+  } catch {
+    return { frequency: 'weekly', priority: 0.8 };
   }
 }
 
@@ -303,7 +320,10 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 async function getGlobalScripts() {
   try {
-    const res = await fetch(`${API}/api/seo/scripts`, { next: { revalidate: 3600 } });
+    const res = await fetch(`${API}/api/seo/scripts`, {
+      cache: 'force-cache',
+      next: { tags: ['seo'] },
+    });
     return res.ok ? res.json() : { headerScripts: '', footerScripts: '' };
   } catch {
     return { headerScripts: '', footerScripts: '' };
@@ -315,12 +335,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en">
-      <head>
+      <body>
+        {/* Header scripts rendered at top of body. <div> is invalid inside <head>,
+            so place here — analytics scripts work identically at the top of <body>. */}
         {headerScripts && (
           <div dangerouslySetInnerHTML={{ __html: headerScripts }} />
         )}
-      </head>
-      <body>
         {children}
         {footerScripts && (
           <div dangerouslySetInnerHTML={{ __html: footerScripts }} />
@@ -332,6 +352,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 ```
 
 **Typical use cases:** Google Analytics `<script>`, Google Tag Manager snippet, Search Console meta verification tag, Facebook Pixel.
+
+> **Note:** `<div>` is not valid inside `<head>` — browsers silently move it to `<body>`, causing scripts to run in the wrong context. Placing them at the top of `<body>` is identical in practice for all common analytics tools.
 
 ---
 
@@ -394,19 +416,24 @@ Configure from **Admin → SEO Management → XML Sitemap**. The API returns a f
 ```ts
 // app/sitemap.ts
 import { MetadataRoute } from 'next';
+import { fetchSitemapConfig } from '@/lib/seo';
 
 const API  = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:8000';
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-domain.com';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const res  = await fetch(`${API}/api/seo/sitemap-data`, { next: { revalidate: 3600 } });
-  const urls: string[] = res.ok ? await res.json() : [];
+  const [urlsRes, config] = await Promise.all([
+    fetch(`${API}/api/seo/sitemap-data`, { cache: 'force-cache', next: { tags: ['seo'] } }),
+    fetchSitemapConfig(),
+  ]);
+
+  const urls: string[] = urlsRes.ok ? await urlsRes.json() : [];
 
   return urls.map(url => ({
     url: `${SITE}${url}`,
     lastModified: new Date(),
-    changeFrequency: 'weekly',
-    priority: 0.8,
+    changeFrequency: config.frequency as MetadataRoute.Sitemap[0]['changeFrequency'],
+    priority: config.priority,
   }));
 }
 ```
@@ -486,22 +513,95 @@ SEO data is stored independently of the main database — safe to move between e
 
 | Concern | How it's handled |
 |---|---|
-| Page load speed | `next: { revalidate: 3600 }` — Next.js caches the fetch result for 1 hour |
-| CDN caching | API responds with `Cache-Control: public, max-age=3600` |
+| Page load speed | `cache: 'force-cache'` — Next.js serves SEO data from persistent disk cache, zero API calls |
+| Cache invalidation | On-demand revalidation via `revalidateTag('seo')` — updates appear instantly on next request |
+| CDN caching | API responds with `Cache-Control: public, max-age=3600, stale-while-revalidate=86400` |
 | Redirect latency | Rules memory-cached in `middleware.ts` — zero API calls per request during TTL |
 | Blog post SEO | Fetched alongside post content in a single API call — no extra round trip |
 | Missing config | Always provide hardcoded fallback `title`/`description` so the page is never empty |
 
 ---
 
-## 10. Complete File Checklist
+## 10. Static Build & On-Demand Revalidation
+
+`cache: 'force-cache'` makes `fetchPageSeo` behave like a static file read — the result is stored in Next.js's persistent cache on first fetch and served instantly on every subsequent request without hitting the API. Pages are effectively static.
+
+The tradeoff: when you save SEO in the Admin, the cached version stays until you invalidate it. On-demand revalidation solves this — it tells Next.js to drop specific cache entries the moment data changes.
+
+### Step 1 — Revalidation route in your public Next.js site
+
+```ts
+// app/api/revalidate/route.ts
+import { revalidateTag } from 'next/cache';
+import { NextRequest, NextResponse } from 'next/server';
+
+const SECRET = process.env.REVALIDATE_SECRET;
+
+export async function POST(req: NextRequest) {
+  const { searchParams } = req.nextUrl;
+  if (searchParams.get('secret') !== SECRET) {
+    return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
+  }
+
+  const tag = searchParams.get('tag') || 'seo';
+  revalidateTag(tag);
+  return NextResponse.json({ revalidated: true, tag });
+}
+```
+
+Add to `.env.local` in your public site:
+
+```env
+REVALIDATE_SECRET=your-random-secret-here
+```
+
+### Step 2 — Call the route from the API server after SEO saves
+
+Add to `.env` in your API (`api/.env`):
+
+```env
+NEXTJS_SITE_URL=https://your-public-site.com
+REVALIDATE_SECRET=your-random-secret-here
+```
+
+The API automatically calls your revalidation endpoint whenever page SEO, global scripts, or sitemap config is updated. No extra wiring needed — it's built into the SEO routes.
+
+### What gets revalidated
+
+| Admin action | Cache tag cleared |
+|---|---|
+| Save page SEO for `/about` | `seo:about` + `seo` |
+| Save global scripts | `seo` |
+| Save sitemap config | `seo` |
+| Save robots.txt | `seo` |
+
+### Without a webhook (simpler setup)
+
+If you prefer not to configure the webhook, use `revalidate: 3600` instead of `cache: 'force-cache'`:
+
+```ts
+// lib/seo.ts — simple version, no webhook needed
+export async function fetchPageSeo(slug: string) {
+  const res = await fetch(`${API}/api/seo/head?slug=${encodeURIComponent(slug)}`, {
+    next: { revalidate: 3600 },  // re-fetch at most every hour
+  });
+  return res.ok ? res.json() : null;
+}
+```
+
+This is still very fast (cached for 1 hour) but SEO changes take up to 1 hour to appear. Reduce to `revalidate: 60` for 1-minute freshness.
+
+---
+
+## 11. Complete File Checklist
 
 | File | Purpose |
 |---|---|
-| `lib/seo.ts` | Shared helper — `fetchPageSeo`, `seoImageUrl` |
+| `lib/seo.ts` | Shared helper — `fetchPageSeo`, `fetchSitemapConfig`, `seoImageUrl` |
 | `app/layout.tsx` | Inject global header/footer scripts |
+| `app/api/revalidate/route.ts` | On-demand cache invalidation webhook (optional) |
 | `app/robots.txt/route.ts` | Serve Admin-managed robots.txt |
-| `app/sitemap.ts` | Build XML sitemap from API URL list |
+| `app/sitemap.ts` | Build XML sitemap from API URL list + config |
 | `middleware.ts` | Apply 301 redirects and 410 Gone rules |
 | `app/about/page.tsx` | Example static page with `generateMetadata` |
 | `app/blog/[slug]/page.tsx` | Example dynamic page with post SEO + JSON-LD |

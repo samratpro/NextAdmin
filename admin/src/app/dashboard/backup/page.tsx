@@ -177,8 +177,10 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
   const [loading, setLoading] = useState(true);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
   const [sendingFile, setSendingFile] = useState<string | null>(null);
+  const [restoringFile, setRestoringFile] = useState<string | null>(null);
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [uploadingCreds, setUploadingCreds] = useState(false);
+  const [dbs, setDbs] = useState<DbFile[]>([]);
   const credInputRef = useRef<HTMLInputElement>(null);
 
   const refreshDriveStatus = () => api.getDriveStatus().then(setDriveStatus).catch(() => {});
@@ -194,6 +196,7 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
   useEffect(() => {
     load();
     refreshDriveStatus();
+    api.getBackupDatabases().then(d => setDbs(d.databases ?? [])).catch(() => {});
   }, []);
 
   const handleCredentialsUpload = async (file: File) => {
@@ -296,6 +299,21 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
       onNotify('error', e?.response?.data?.error || 'Delete failed');
     } finally {
       setDeletingFile(null);
+    }
+  };
+
+  const handleRestoreFromServer = async (b: BackupFile) => {
+    const defaultDb = dbs.find(d => d.engine !== 'assets-only') ?? dbs[0];
+    const dbPath = defaultDb?.path;
+    if (!confirm(`Restore from "${b.filename}"?\n\nA safety backup will be created automatically. Continue?`)) return;
+    setRestoringFile(b.filename);
+    try {
+      const res = await api.restoreFromStoredBackup(b.filename, dbPath);
+      onNotify('success', `Restored successfully. Safety backup: ${res.safetyBackup}`);
+    } catch (e: any) {
+      onNotify('error', e?.response?.data?.error || 'Restore failed');
+    } finally {
+      setRestoringFile(null);
     }
   };
 
@@ -411,6 +429,15 @@ function BackupsTab({ onNotify }: { onNotify: (type: 'success' | 'error', msg: s
                         >
                           Download
                         </button>
+                        {!b.filename.startsWith('pre-restore_') && (
+                          <button
+                            onClick={() => handleRestoreFromServer(b)}
+                            disabled={restoringFile === b.filename}
+                            className="px-2.5 py-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            {restoringFile === b.filename ? 'Restoring...' : 'Restore'}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleSendToDrive(b)}
                           disabled={sendingFile === b.filename || !driveStatus?.configured}

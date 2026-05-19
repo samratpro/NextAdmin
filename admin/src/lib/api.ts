@@ -129,6 +129,11 @@ class ApiClient {
     return response.data;
   }
 
+  async restoreFromStoredBackup(filename: string, dbPath?: string): Promise<any> {
+    const response = await this.client.post(`/api/admin/backup/files/${encodeURIComponent(filename)}/restore`, { dbPath });
+    return response.data;
+  }
+
   async restoreBackup(file: File, dbPath?: string): Promise<any> {
     const form = new FormData();
     form.append('file', file);

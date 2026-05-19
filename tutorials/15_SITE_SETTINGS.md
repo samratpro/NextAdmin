@@ -16,6 +16,7 @@ Site settings let you control branding and identity from the admin panel without
 | `faviconUrl` | Path or URL to the favicon (upload or external) |
 | `footerText` | Footer copyright or credit line |
 | `contactEmail` | Public contact email |
+| `phone` | Public contact phone number |
 | `siteUrl` | Canonical public URL of the site |
 | `primaryColor` | Hex color for the primary brand color |
 
@@ -101,7 +102,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <Navbar settings={settings} />
         <main>{children}</main>
-        <Footer text={settings?.footerText} />
+        <Footer settings={settings} />
       </body>
     </html>
   );
@@ -144,15 +145,54 @@ export function Navbar({ settings }: { settings: any }) {
 
 The `--color-primary` CSS variable is set on `<html>` from `layout.tsx` (shown above), so it is available everywhere in the app.
 
-### 4. Footer
+### 4. Footer with phone and email
 
 ```tsx
 // components/Footer.tsx
-export function Footer({ text }: { text?: string }) {
+export function Footer({ settings }: { settings: any }) {
   return (
-    <footer className="border-t py-6 text-center text-sm text-gray-500">
-      {text || `© ${new Date().getFullYear()} All rights reserved.`}
+    <footer className="border-t py-6 text-center text-sm text-gray-500 space-y-1">
+      <p>{settings?.footerText || `© ${new Date().getFullYear()} All rights reserved.`}</p>
+      <div className="flex justify-center gap-6">
+        {settings?.contactEmail && (
+          <a href={`mailto:${settings.contactEmail}`} className="hover:underline">
+            {settings.contactEmail}
+          </a>
+        )}
+        {settings?.phone && (
+          <a href={`tel:${settings.phone}`} className="hover:underline">
+            {settings.phone}
+          </a>
+        )}
+      </div>
     </footer>
+  );
+}
+```
+
+### 5. Contact page / contact section
+
+```tsx
+// app/contact/page.tsx  (server component)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+async function getSettings() {
+  const res = await fetch(`${API_URL}/api/settings`, { next: { revalidate: 60 } });
+  return (await res.json()).settings;
+}
+
+export default async function ContactPage() {
+  const s = await getSettings();
+  return (
+    <section className="max-w-lg mx-auto py-16 space-y-4">
+      <h1 className="text-3xl font-bold">Contact Us</h1>
+      {s?.contactEmail && (
+        <p>Email: <a href={`mailto:${s.contactEmail}`} className="text-blue-600">{s.contactEmail}</a></p>
+      )}
+      {s?.phone && (
+        <p>Phone: <a href={`tel:${s.phone}`} className="text-blue-600">{s.phone}</a></p>
+      )}
+    </section>
   );
 }
 ```
@@ -235,6 +275,28 @@ export function Navbar() {
         <span>{s?.siteTitle}</span>
       )}
     </nav>
+  );
+}
+```
+
+```tsx
+// src/components/Footer.tsx
+import { useSettings } from '../context/SettingsContext';
+
+export function Footer() {
+  const s = useSettings();
+  return (
+    <footer className="border-t py-6 text-center text-sm text-gray-500 space-y-1">
+      <p>{s?.footerText || `© ${new Date().getFullYear()} All rights reserved.`}</p>
+      <div className="flex justify-center gap-6">
+        {s?.contactEmail && (
+          <a href={`mailto:${s.contactEmail}`}>{s.contactEmail}</a>
+        )}
+        {s?.phone && (
+          <a href={`tel:${s.phone}`}>{s.phone}</a>
+        )}
+      </div>
+    </footer>
   );
 }
 ```

@@ -11,6 +11,7 @@ interface SiteSettings {
   faviconUrl: string;
   footerText: string;
   contactEmail: string;
+  phone: string;
   siteUrl: string;
   primaryColor: string;
 }
@@ -22,6 +23,7 @@ const EMPTY: SiteSettings = {
   faviconUrl: '',
   footerText: '',
   contactEmail: '',
+  phone: '',
   siteUrl: '',
   primaryColor: '#4f46e5',
 };
@@ -271,6 +273,16 @@ export default function SiteSettingsPage() {
                   value={form.contactEmail}
                   onChange={e => set('contactEmail', e.target.value)}
                   placeholder="hello@example.com"
+                  className="block w-full border border-gray-300 rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={e => set('phone', e.target.value)}
+                  placeholder="+1 (555) 000-0000"
                   className="block w-full border border-gray-300 rounded-lg py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>

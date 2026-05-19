@@ -12,6 +12,19 @@ import {
 } from '../../middleware/auth';
 import logger from '../../core/logger';
 
+async function revalidateFrontend(tag: string) {
+  const siteUrl = process.env.NEXTJS_SITE_URL;
+  const secret  = process.env.REVALIDATE_SECRET;
+  if (!siteUrl || !secret) return;
+  try {
+    await fetch(`${siteUrl}/api/revalidate?tag=${encodeURIComponent(tag)}&secret=${encodeURIComponent(secret)}`, {
+      method: 'POST',
+    });
+  } catch {
+    // fire-and-forget — don't fail the admin save if the frontend is unreachable
+  }
+}
+
 export default async function seoRoutes(fastify: FastifyInstance) {
   // Register multipart locally
   await fastify.register(multipart, {
@@ -57,6 +70,13 @@ export default async function seoRoutes(fastify: FastifyInstance) {
     return seoService.getRedirects();
   });
 
+  // Public sitemap config (frequency + priority) — consumed by app/sitemap.ts
+  fastify.get('/api/seo/sitemap-config', async (_request, reply) => {
+    const config = seoService.getSitemapConfig();
+    reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    return { frequency: config.frequency, priority: config.priority };
+  });
+
 
   // --- Admin Endpoints (Protected) ---
 
@@ -67,6 +87,7 @@ export default async function seoRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: { content: string } }>('/api/admin/seo/robots', { preHandler: [requirePermission('seo.manage')] }, async (request, reply) => {
     seoService.updateRobotsContent(request.body.content);
+    revalidateFrontend('seo');
     return { success: true };
   });
 
@@ -77,6 +98,7 @@ export default async function seoRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: GlobalSeoSettings }>('/api/admin/seo/scripts', { preHandler: [requirePermission('seo.manage')] }, async (request, reply) => {
     seoService.updateGlobalSettings(request.body);
+    revalidateFrontend('seo');
     return { success: true };
   });
 
@@ -88,7 +110,15 @@ export default async function seoRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post<{ Body: PageSeo }>('/api/admin/seo/pages', { preHandler: [requirePermission('seo.manage')] }, async (request, reply) => {
+    const { schema } = request.body;
+    if (schema) {
+      try { JSON.parse(schema); } catch {
+        return reply.status(400).send({ error: 'Schema (JSON-LD) must be valid JSON' });
+      }
+    }
     seoService.updatePageSeo(request.body.pageSlug, request.body);
+    revalidateFrontend(`seo:${request.body.pageSlug}`);
+    revalidateFrontend('seo');
     return { success: true };
   });
 
@@ -106,6 +136,7 @@ export default async function seoRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: SitemapConfig }>('/api/admin/seo/sitemap', { preHandler: [requirePermission('seo.manage')] }, async (request, reply) => {
     seoService.updateSitemapConfig(request.body);
+    revalidateFrontend('seo');
     return { success: true };
   });
 
@@ -156,8 +187,12 @@ export default async function seoRoutes(fastify: FastifyInstance) {
       if (!from) return reply.status(400).send({ error: '"from" path is required' });
       if (type === 301 && !to) return reply.status(400).send({ error: '"to" path is required for 301 redirect' });
       if (type !== 301 && type !== 410) return reply.status(400).send({ error: 'type must be 301 or 410' });
-      const rule = seoService.addRedirect({ from, to: type === 410 ? '' : to, type });
-      return rule;
+      try {
+        const rule = seoService.addRedirect({ from, to: type === 410 ? '' : to, type });
+        return rule;
+      } catch (err: any) {
+        return reply.status(409).send({ error: err.message });
+      }
     }
   );
 
