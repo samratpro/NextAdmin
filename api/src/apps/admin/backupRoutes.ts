@@ -931,7 +931,12 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     const backupName = `${formatTimestamp(new Date())}_${label}${ext}`;
     const backupPath = path.join(BACKUP_DIR, backupName);
 
-    await dispatchBackup(db, backupPath);
+    try {
+      await dispatchBackup(db, backupPath);
+    } catch (err: any) {
+      try { fs.unlinkSync(backupPath); } catch {}
+      return reply.code(500).send({ error: err?.message ?? 'Backup failed' });
+    }
 
     const stat = fs.statSync(backupPath);
     reply.code(201).send({ backup: { filename: backupName, sizeBytes: stat.size, createdAt: new Date().toISOString() } });
@@ -971,13 +976,15 @@ export default async function backupRoutes(fastify: FastifyInstance) {
 
     try {
       await dispatchBackup(db, tmp);
-      const filename = db.engine === 'sqlite' ? path.basename(db.path) : `${label}_snapshot${ext}`;
-      reply.header('Content-Disposition', `attachment; filename="${filename}"`);
-      reply.header('Content-Type', 'application/octet-stream');
-      reply.send(fs.createReadStream(tmp));
-    } finally {
-      setTimeout(() => { try { fs.unlinkSync(tmp); } catch {} }, 15000);
+    } catch (err: any) {
+      try { fs.unlinkSync(tmp); } catch {}
+      return reply.code(500).send({ error: err?.message ?? 'Backup failed' });
     }
+    const filename = db.engine === 'sqlite' ? path.basename(db.path) : `${label}_snapshot${ext}`;
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+    reply.header('Content-Type', 'application/octet-stream');
+    reply.send(fs.createReadStream(tmp));
+    setTimeout(() => { try { fs.unlinkSync(tmp); } catch {} }, 15000);
   });
 
   // 5. Download a stored backup file
