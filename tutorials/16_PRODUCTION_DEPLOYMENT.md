@@ -351,9 +351,8 @@ git pull https://samratpro:git_secrect_token@github.com/username/repo_name.git &
 ```
 ```bash
 git pull
-docker-compose build --no-cache
 docker-compose down
-docker-compose up -d
+docker compose build --no-cache && docker compose up -d
 
 rm -rf /www/server/nginx/proxy_cache_dir/*
 /www/server/nginx/sbin/nginx -s reload
