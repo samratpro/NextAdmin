@@ -13,12 +13,14 @@ import settings from '../../config/settings';
 
 const execAsync = promisify(exec);
 
-// Backups stored under <api-cwd>/backups/
-const BACKUP_DIR = path.resolve(process.cwd(), 'backups');
+// All writable runtime files live under <api-cwd>/data/ so a single
+// volume mount (./data/app:/app/data) survives Docker image rebuilds.
+const DATA_DIR      = path.resolve(process.cwd(), 'data');
+const BACKUP_DIR    = path.join(DATA_DIR, 'backups');
 
 // ─── Backup Schedule config ───────────────────────────────────────────────────
 
-const SCHEDULE_FILE = path.resolve(process.cwd(), 'backup_schedule.json');
+const SCHEDULE_FILE = path.join(DATA_DIR, 'backup_schedule.json');
 
 interface BackupScheduleConfig {
   enabled: boolean;
@@ -59,7 +61,7 @@ function saveScheduleConfig(config: BackupScheduleConfig) {
 
 // ─── Backup log ───────────────────────────────────────────────────────────────
 
-const LOG_FILE    = path.resolve(process.cwd(), 'backup_log.json');
+const LOG_FILE    = path.join(DATA_DIR, 'backup_log.json');
 const LOG_MAX     = 20; // keep last 20 entries
 
 interface BackupLogEntry {
@@ -118,8 +120,8 @@ function createThrottle(bytesPerSecond: number): Transform {
 
 const DRIVE_FOLDER_NAME = 'NextAdmin_backup';
 const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
-const TOKENS_FILE      = path.resolve(process.cwd(), '.google_tokens.json');
-const CREDENTIALS_FILE = path.resolve(process.cwd(), '.google_credentials.json');
+const TOKENS_FILE      = path.join(DATA_DIR, '.google_tokens.json');
+const CREDENTIALS_FILE = path.join(DATA_DIR, '.google_credentials.json');
 
 // ── token helpers ─────────────────────────────────────────────────────────────
 function loadStoredTokens(): any | null {

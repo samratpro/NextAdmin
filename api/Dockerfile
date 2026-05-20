@@ -12,6 +12,6 @@ COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 RUN apk add --no-cache postgresql-client
 COPY --from=builder /app/dist ./dist
-RUN mkdir -p public
+RUN mkdir -p public data
 EXPOSE 8000
 CMD ["node", "dist/index.js"]
