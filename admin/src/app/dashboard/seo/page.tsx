@@ -1188,8 +1188,15 @@ function BackupTab({ driveStatus }: { driveStatus: any }) {
             if (toDrive) {
                 alert('SEO Backup uploaded to Google Drive successfully!');
             } else {
-                // Trigger download
-                window.location.href = api.getBackupFileDownloadUrl(res.file);
+                const blob = await api.downloadBackupFile(res.file);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = res.file;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             }
         } catch (err: any) {
             alert('Backup failed: ' + (err.response?.data?.error || err.message));
