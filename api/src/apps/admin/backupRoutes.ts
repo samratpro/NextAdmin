@@ -983,10 +983,15 @@ export default async function backupRoutes(fastify: FastifyInstance) {
       return reply.code(500).send({ error: err?.message ?? 'Backup failed' });
     }
     const filename = db.engine === 'sqlite' ? path.basename(db.path) : `${label}_snapshot${ext}`;
-    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
-    reply.header('Content-Type', 'application/octet-stream');
-    reply.send(fs.createReadStream(tmp));
-    setTimeout(() => { try { fs.unlinkSync(tmp); } catch {} }, 15000);
+    try {
+      const buf = fs.readFileSync(tmp);
+      reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+      reply.header('Content-Type', 'application/octet-stream');
+      reply.header('Content-Length', String(buf.length));
+      return reply.send(buf);
+    } finally {
+      try { fs.unlinkSync(tmp); } catch {}
+    }
   });
 
   // 5. Download a stored backup file
@@ -998,9 +1003,13 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     const filePath = path.join(BACKUP_DIR, safe);
     if (!fs.existsSync(filePath)) return reply.code(404).send({ error: 'Backup file not found' });
 
+    const buf = fs.readFileSync(filePath);
+    if (buf.length === 0) return reply.code(500).send({ error: 'Backup file is empty' });
+
     reply.header('Content-Disposition', `attachment; filename="${safe}"`);
     reply.header('Content-Type', 'application/octet-stream');
-    reply.send(fs.createReadStream(filePath));
+    reply.header('Content-Length', String(buf.length));
+    return reply.send(buf);
   });
 
   // 6. Restore from uploaded file
