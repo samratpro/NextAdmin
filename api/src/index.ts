@@ -12,6 +12,8 @@ import logger from './core/logger';
 import settings from './config/settings';
 import DatabaseManager from './core/database';
 import emailService from './core/email';
+import { runMigrations } from './core/db/migrateRunner';
+import { runMakeMigrations } from './cli/makemigrations';
 import { ModelRegistry } from './core/ModelRegistry';
 import { requireBasicAuthSuperuser } from './middleware/auth';
 import permissionService from './apps/auth/permissionService';
@@ -46,6 +48,14 @@ async function initializeDatabase() {
   // Use the full database config (engine + path/url) from settings
   DatabaseManager.initialize(settings.database);
 
+  // In development, auto-generate migrations so the schema stays synced seamlessly
+  if (settings.environment === 'development' || settings.debug) {
+    await runMakeMigrations();
+  }
+
+  // Run pending database migrations
+  await runMigrations();
+
   const coreModels = [
     User,
     Group,
@@ -59,11 +69,12 @@ async function initializeDatabase() {
   ];
 
   for (const model of [...coreModels]) {
-    await model.createTable();
+    // Table creation is now handled by CLI migrations
+    // await model.createTable();
   }
 
   for (const metadata of ModelRegistry.getAllModels()) {
-    await metadata.model.createTable();
+    // await metadata.model.createTable();
     await permissionService.createModelPermissions(metadata.model.name, metadata.displayName);
   }
 

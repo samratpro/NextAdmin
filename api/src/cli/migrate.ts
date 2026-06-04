@@ -1,7 +1,15 @@
-console.log(`
-[INFO] Schema Synchronization
-In this framework, database tables are automatically created/updated when the API server starts.
-To apply changes:
-1. Ensure your models are imported in src/index.ts
-2. Restart the API server (npm run dev)
-`);
+import { runMigrations } from '../core/db/migrateRunner';
+import DatabaseManager from '../core/database';
+import settings from '../config/settings';
+
+async function run() {
+  console.log('[INFO] Starting migration process...');
+  
+  // Initialize DB
+  const db = DatabaseManager.initialize(settings.database);
+  await runMigrations();
+  await DatabaseManager.close();
+  console.log('[INFO] Migration process completed.');
+}
+
+run().catch(console.error);
