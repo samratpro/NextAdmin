@@ -7,8 +7,12 @@ on:
       - main
   pull_request:
 
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
 jobs:
-  verify:
+  api:
+    name: API (TypeScript build + tests)
     runs-on: ubuntu-latest
 
     steps:
@@ -18,23 +22,47 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.node-version'
+          node-version: '20.x'
           cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            api/package-lock.json
-            admin/package-lock.json
+          cache-dependency-path: api/package-lock.json
 
-      - name: Install Root Dependencies
-        run: npm ci
-
-      - name: Install API Dependencies
+      - name: Install API dependencies
         run: npm ci
         working-directory: api
 
-      - name: Install Admin Dependencies
+      - name: Build API (tsc)
+        run: npm run build
+        working-directory: api
+
+      - name: Run API tests
+        run: npm test
+        working-directory: api
+
+  admin:
+    name: Admin (Next.js build + tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install admin dependencies
         run: npm ci
         working-directory: admin
 
-      - name: Verify Repository
-        run: npm run verify
+      - name: Build admin (next build)
+        run: npm run build
+        working-directory: admin
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      - name: Run admin tests
+        run: npm test -- --passWithNoTests
+        working-directory: admin
