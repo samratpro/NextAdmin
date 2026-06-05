@@ -1,0 +1,92 @@
+{
+  "users": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "username": "username VARCHAR(150) UNIQUE NOT NULL",
+    "email": "email VARCHAR(254) UNIQUE NOT NULL",
+    "password": "password TEXT NOT NULL",
+    "firstName": "firstName VARCHAR(150)",
+    "lastName": "lastName VARCHAR(150)",
+    "isActive": "isActive BOOLEAN NOT NULL DEFAULT FALSE",
+    "isStaff": "isStaff BOOLEAN NOT NULL DEFAULT FALSE",
+    "isSuperuser": "isSuperuser BOOLEAN NOT NULL DEFAULT FALSE",
+    "dateJoined": "dateJoined DATETIME NOT NULL",
+    "lastLogin": "lastLogin DATETIME"
+  },
+  "groups": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "name": "name VARCHAR(150) UNIQUE NOT NULL",
+    "description": "description TEXT"
+  },
+  "permissions": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "name": "name VARCHAR(255) NOT NULL",
+    "codename": "codename VARCHAR(100) UNIQUE NOT NULL",
+    "modelName": "modelName VARCHAR(100) NOT NULL"
+  },
+  "user_permissions": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "userId": "userId INTEGER NOT NULL",
+    "permissionId": "permissionId INTEGER NOT NULL"
+  },
+  "group_permissions": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "groupId": "groupId INTEGER NOT NULL",
+    "permissionId": "permissionId INTEGER NOT NULL"
+  },
+  "user_groups": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "userId": "userId INTEGER NOT NULL",
+    "groupId": "groupId INTEGER NOT NULL"
+  },
+  "email_verification_tokens": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "userId": "userId VARCHAR(36) NOT NULL",
+    "token": "token VARCHAR(255) UNIQUE NOT NULL",
+    "createdAt": "createdAt DATETIME NOT NULL",
+    "expiresAt": "expiresAt DATETIME NOT NULL"
+  },
+  "password_reset_tokens": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "userId": "userId VARCHAR(36) NOT NULL",
+    "token": "token VARCHAR(255) UNIQUE NOT NULL",
+    "createdAt": "createdAt DATETIME NOT NULL",
+    "expiresAt": "expiresAt DATETIME NOT NULL",
+    "used": "used BOOLEAN NOT NULL DEFAULT FALSE"
+  },
+  "refresh_tokens": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "userId": "userId VARCHAR(36) NOT NULL",
+    "token": "token VARCHAR(500) UNIQUE NOT NULL",
+    "createdAt": "createdAt DATETIME NOT NULL",
+    "expiresAt": "expiresAt DATETIME NOT NULL",
+    "revoked": "revoked BOOLEAN NOT NULL DEFAULT FALSE"
+  },
+  "nextadmin_migrations": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "name": "name VARCHAR(255) UNIQUE NOT NULL",
+    "appliedAt": "appliedAt DATETIME NOT NULL"
+  },
+  "blog_categories": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "name": "name VARCHAR(100) NOT NULL",
+    "slug": "slug VARCHAR(100) UNIQUE NOT NULL",
+    "description": "description TEXT"
+  },
+  "blog_posts": {
+    "id": "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    "title": "title VARCHAR(255) NOT NULL",
+    "slug": "slug VARCHAR(255) UNIQUE NOT NULL",
+    "excerpt": "excerpt TEXT",
+    "content": "content TEXT NOT NULL",
+    "featuredImage": "featuredImage VARCHAR(500)",
+    "metaTitle": "metaTitle VARCHAR(60)",
+    "metaDescription": "metaDescription VARCHAR(160)",
+    "schema": "schema TEXT",
+    "categoryId": "categoryId INTEGER",
+    "authorId": "authorId INTEGER",
+    "published": "published BOOLEAN NOT NULL DEFAULT FALSE",
+    "publishedAt": "publishedAt DATETIME",
+    "createdAt": "createdAt DATETIME NOT NULL",
+    "updatedAt": "updatedAt DATETIME NOT NULL"
+  }
+}
