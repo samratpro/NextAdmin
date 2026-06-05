@@ -1,0 +1,41 @@
+{
+  "name": "next-admin-framework",
+  "version": "1.0.0",
+  "description": "NextAdmin full-stack framework with Node.js, Fastify, and Next.js",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "preinstall": "node scripts/check-node.js",
+    "install:all": "npm run install:api && npm run install:admin",
+    "install:api": "cd api && npm install",
+    "install:admin": "cd admin && npm install",
+    "verify": "npm run verify:api && npm run verify:admin",
+    "verify:api": "cd api && npm run build",
+    "verify:admin": "cd admin && npm run build",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:admin\"",
+    "dev:api": "cd api && npm run dev",
+    "dev:admin": "cd admin && npm run dev",
+    "build:all": "npm run build:api && npm run build:admin",
+    "build:api": "cd api && npm run build",
+    "build:admin": "cd admin && npm run build",
+    "migrate": "cd api && npm run migrate",
+    "createsuperuser": "cd api && npm run createsuperuser",
+    "verify-admin": "cd api && npm run verify-admin",
+    "startapp": "cd api && npm run startapp"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "django",
+    "fastify",
+    "nextjs",
+    "typescript",
+    "framework",
+    "fullstack"
+  ],
+  "author": "",
+  "license": "MIT"
+}

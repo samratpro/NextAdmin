@@ -1,0 +1,83 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+*/dist/
+**/dist/
+.next/
+*/.next/
+**/.next/
+.next2/
+*/.next2/
+**/.next2/
+out/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+*/.env
+**/.env
+
+# Keep local dev defaults committed — no real secrets, safe to track
+!api/.env
+!admin/.env
+
+# Google Drive credentials/tokens
+.google_credentials.json
+.google_tokens.json
+*/.google_credentials.json
+**/.google_credentials.json
+*/.google_tokens.json
+**/.google_tokens.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+.cache/
+.temp/
+tmp/
+
+admin/public/uploads/
+**/public/uploads/
+
+# Backups & Dynamic Data
+backups/
+api/backups/
+*.tar.gz
+api/src/apps/seo_data/
+
+# Production data (bind-mounted Docker volumes)
+data/
