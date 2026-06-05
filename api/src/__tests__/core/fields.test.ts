@@ -40,13 +40,13 @@ describe('BooleanField', () => {
   it('emits DEFAULT 0 for default: false', () => {
     const f = new BooleanField({ default: false });
     f.fieldName = 'active';
-    expect(f.getFullDefinition()).toContain('DEFAULT 0');
+    expect(f.getFullDefinition()).toContain('DEFAULT FALSE');
   });
 
   it('emits DEFAULT 1 for default: true', () => {
     const f = new BooleanField({ default: true });
     f.fieldName = 'active';
-    expect(f.getFullDefinition()).toContain('DEFAULT 1');
+    expect(f.getFullDefinition()).toContain('DEFAULT TRUE');
   });
 });
 

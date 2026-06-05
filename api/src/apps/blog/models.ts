@@ -41,7 +41,7 @@ export class BlogPost extends Model {
   title = new CharField({ maxLength: 255 });
   slug = new CharField({ maxLength: 255, unique: true });
   excerpt = new TextField({ nullable: true });
-  content = new TextField(); // Stores Editor.js JSON
+  content = new TextField({ nullable: true }); // Stores Editor.js JSON
   featuredImage = new CharField({ maxLength: 500, nullable: true });
   
   metaTitle = new CharField({ maxLength: 60, nullable: true });
