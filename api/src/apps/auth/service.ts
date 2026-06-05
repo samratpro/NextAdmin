@@ -110,7 +110,7 @@ class AuthService {
     return {
       success: true,
       message: 'Registration successful. Please check your email to verify your account.',
-      user: safeUser
+      user: safeUser as unknown as UserRecord
     };
   }
 
