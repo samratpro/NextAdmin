@@ -320,6 +320,24 @@ class ApiClient {
     return this.delete(`/api/admin/seo/redirects/${encodeURIComponent(id)}`);
   }
 
+  // Request Logs
+  async getRequestLogs(params: { q?: string; type?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.type && params.type !== 'All') qs.set('type', params.type);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.get(`/api/admin/logs${suffix}`);
+  }
+
+  async downloadRequestLogsCsv(params: { q?: string; type?: string } = {}): Promise<Blob> {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.type && params.type !== 'All') qs.set('type', params.type);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    const response = await this.client.get(`/api/admin/logs/download${suffix}`, { responseType: 'blob' });
+    return response.data;
+  }
+
   async createSeoBackup(toDrive: boolean = false) {
     const response = await this.client.post(`/api/admin/seo/backup?drive=${toDrive}`);
     return response.data;

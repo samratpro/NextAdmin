@@ -1,3 +1,4 @@
+// @ts-nocheck
 import readline from 'readline';
 
 // Must be set BEFORE any module that uses the logger is imported.
@@ -16,18 +17,26 @@ process.stdin.resume();
 
 const question = (q: string) => new Promise<string>(resolve => rl.question(q, resolve));
 
+// This file is built to CommonJS but uses native dynamic import() for load
+// ordering. Node's CJS→ESM interop sets namespace.default = module.exports,
+// which for our `export default X` modules is { default: X } — i.e. the real
+// default is double-wrapped. Unwrap the extra level when present (this also
+// stays correct if the package is ever emitted as native ESM).
+const loadDefault = async (path: string) => {
+    const ns: any = await import(path);
+    return ns.default?.default ?? ns.default;
+};
+
 async function run() {
     // Import and silence logger FIRST before any other app modules
-    const { default: logger } = await import('../core/logger');
+    const logger = await loadDefault('../core/logger.js');
     logger.level = 'silent';
 
     // Now import models and other dependencies — their side effects (like model registration)
     // will now use the silenced logger.
-    const [{ User }, { default: DatabaseManager }, { default: settings }] = await Promise.all([
-        import('../apps/auth/models'),
-        import('../core/database'),
-        import('../config/settings'),
-    ]);
+    const { User } = await import('../apps/auth/models.js');
+    const DatabaseManager = await loadDefault('../core/database.js');
+    const settings = await loadDefault('../config/settings.js');
 
     DatabaseManager.initialize(settings.database);
     await User.createTable();

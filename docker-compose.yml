@@ -59,6 +59,7 @@ services:
       - ./data/app:/app/data                                # backups, schedule, log, google auth
       - ./data/seo_data:/app/dist/apps/seo_data             # SEO page config & robots
       - ./data/settings_data:/app/dist/apps/settings_data   # site settings (logo, name, etc.)
+      - ./data/logs:/app/logs:ro                            # nginx access log (read-only) for Request Logs
 
   admin:
     build:

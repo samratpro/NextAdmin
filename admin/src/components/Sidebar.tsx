@@ -151,6 +151,16 @@ function SidebarContent({ className = '' }: SidebarProps) {
                         💾 Backup Management
                     </button>
                 )}
+                {isSuperuser && (
+                    <button
+                        onClick={() => router.push('/dashboard/logs')}
+                        className={`w-full px-3 py-2 text-sm text-left rounded transition-colors ${
+                            pathname === '/dashboard/logs' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                    >
+                        📊 Request Logs
+                    </button>
+                )}
                 {hasPermission('seo.manage') && (
                     <button
                         onClick={() => router.push('/dashboard/seo')}

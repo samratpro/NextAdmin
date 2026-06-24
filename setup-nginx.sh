@@ -9,6 +9,12 @@ if [ ! -f .env ]; then
 fi
 export $(grep -v '^#' .env | xargs)
 
+# ── Shared access log for the admin "Request Logs" viewer ────────────────────
+# All vhosts write here; the api container reads it (mounted ./data/logs:ro).
+PROJECT_DIR="$(pwd)"
+REQUEST_LOG_FILE="${PROJECT_DIR}/data/logs/access.log"
+mkdir -p "${PROJECT_DIR}/data/logs"
+
 echo "Setting up Nginx for:"
 echo "  API   → https://${API_DOMAIN}  (port ${API_PORT})"
 echo "  Admin → https://${ADMIN_DOMAIN}  (port ${ADMIN_PORT})"
@@ -38,6 +44,9 @@ write_http_config() {
 server {
     listen 80;
     server_name ${DOMAIN};
+
+    # Shared access log for the admin Request Logs viewer
+    access_log ${REQUEST_LOG_FILE};
 
     # ACME challenge for SSL certificate issuance
     location /.well-known/acme-challenge/ {
@@ -73,6 +82,9 @@ server {
 
     ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    # Shared access log for the admin Request Logs viewer
+    access_log ${REQUEST_LOG_FILE};
 
     # ACME challenge (for renewals)
     location /.well-known/acme-challenge/ {

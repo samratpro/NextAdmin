@@ -5,6 +5,7 @@ import fs from 'fs';
 import { pipeline } from 'stream/promises';
 import { requireSuperuser } from '../../middleware/auth';
 import settingsService, { SETTINGS_UPLOADS_DIR } from './service';
+import { revalidateFrontend } from '../../core/revalidate';
 
 export default async function settingsRoutes(fastify: FastifyInstance) {
   await fastify.register(multipart, {
@@ -34,6 +35,7 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       if (body[key] !== undefined) updates[key] = body[key];
     }
     const settings = settingsService.update(updates);
+    revalidateFrontend('site-settings');
     reply.send({ success: true, settings });
   });
 
@@ -63,6 +65,7 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
 
       const url = `/uploads/settings/${filename}`;
       settingsService.update(type === 'logo' ? { logoUrl: url } : { faviconUrl: url });
+      revalidateFrontend('site-settings');
 
       return { success: true, url };
     }

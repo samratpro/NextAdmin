@@ -11,6 +11,7 @@ import staticFiles from '@fastify/static';
 import logger from './core/logger';
 import settings from './config/settings';
 import DatabaseManager from './core/database';
+import { revalidateFrontend } from './core/revalidate';
 import emailService from './core/email';
 import { ModelRegistry } from './core/ModelRegistry';
 import { requireBasicAuthSuperuser } from './middleware/auth';
@@ -318,6 +319,19 @@ async function start() {
       swagger: `http://${settings.host}:${settings.port}/docs`,
       database: settings.database.engine === 'postgresql' ? settings.database.url : settings.database.path,
     }, 'Server started');
+
+    // After a rebuild/redeploy a public website can serve statically-baked
+    // default settings (its build couldn't reach the API). Auto-trigger
+    // revalidation a few times — the frontend may still be booting — so the
+    // logo/favicon/SEO self-heal without anyone clicking "Save" in the admin.
+    // No-ops when NEXTJS_SITE_URL is unset (e.g. API-only deployments).
+    for (const delayMs of [8000, 30000, 60000]) {
+      const t = setTimeout(() => {
+        revalidateFrontend('site-settings');
+        revalidateFrontend('seo');
+      }, delayMs);
+      t.unref();
+    }
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
