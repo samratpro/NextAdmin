@@ -37,7 +37,7 @@ Please implement the following React components and logic:
 
 5. Site-wide Scripts & Integrations:
    - Fetch header/footer integration scripts in `app/layout.tsx` from `GET /api/seo/scripts`.
-   - Render header scripts inside `<head>` and footer scripts at the end of `<body>` via `dangerouslySetInnerHTML` for zero-friction analytics installations (e.g., Google Analytics, Tag Manager).
+   - Parse the admin HTML into real tags: emit `<meta>`/`<link>`/`<title>` as JSX so React hoists them into `<head>` (required for verification meta tags like `google-site-verification`), and run `<script>` tags via `next/script`. Do NOT `dangerouslySetInnerHTML` the raw string into a `<div>` — a `<meta>` injected that way stays in `<body>` and crawlers ignore it. See `13_SEO_INTEGRATION.md` → Global Scripts for the `GlobalScripts` component.
 
 6. Automated 301 Redirects & 410 Gone Middleware:
    - Setup `middleware.ts` loading rules from `GET /api/seo/redirects` (with a 60-second in-memory caching TTL).

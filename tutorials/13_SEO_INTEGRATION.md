@@ -314,8 +314,85 @@ schema = new TextField({ nullable: true });
 
 Inject analytics, tag managers, and verification codes site-wide. Managed from **Admin → SEO Management → Global Scripts**.
 
+> **Do not** dump this HTML through `<div dangerouslySetInnerHTML>`. A `<meta>` (e.g. `google-site-verification`) written that way lands inside `<body>` as inert text — crawlers only read verification tags in `<head>`, so verification silently fails. React (19+) auto-hoists **real** `<meta>`/`<link>`/`<title>` JSX elements into `<head>`, so the fix is to parse the admin HTML into genuine tags. Scripts go through `next/script` so they actually execute.
+
+Create a small server component that parses the free-form HTML (trusted admin input) into real tags:
+
+```tsx
+// components/GlobalScripts.tsx
+import React from 'react';
+import Script from 'next/script';
+
+// HTML attribute name → React prop name for the few that differ.
+const ATTR_MAP: Record<string, string> = {
+  class: 'className', for: 'htmlFor', charset: 'charSet',
+  'http-equiv': 'httpEquiv', crossorigin: 'crossOrigin',
+  referrerpolicy: 'referrerPolicy', hreflang: 'hrefLang',
+};
+
+function parseAttrs(raw: string): Record<string, string | boolean> {
+  const attrs: Record<string, string | boolean> = {};
+  const re = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) {
+    if (!m[1]) continue;
+    const name = ATTR_MAP[m[1].toLowerCase()] ?? m[1];
+    const value = m[2] ?? m[3] ?? m[4];
+    attrs[name] = value === undefined ? true : value;
+  }
+  return attrs;
+}
+
+function parseHeadHtml(html: string) {
+  const tags: React.ReactNode[] = [];
+  const scripts: { key: string; attrs: Record<string, string | boolean>; inner: string }[] = [];
+  let n = 0;
+
+  // Extract <script>…</script> first (their content may contain '>').
+  const rest = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, (_f, a: string, inner: string) => {
+    scripts.push({ key: `gs-s${n++}`, attrs: parseAttrs(a), inner });
+    return '';
+  });
+
+  let m: RegExpExecArray | null;
+  const voidRe = /<(meta|link|base)\b([^>]*?)\/?>/gi;
+  while ((m = voidRe.exec(rest)) !== null) {
+    tags.push(React.createElement(m[1].toLowerCase(), { key: `gs-t${n++}`, ...parseAttrs(m[2]) }));
+  }
+  const titleRe = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/gi;
+  while ((m = titleRe.exec(rest)) !== null) {
+    tags.push(<title key={`gs-t${n++}`}>{m[1]}</title>);
+  }
+  return { tags, scripts };
+}
+
+export function GlobalScripts({
+  html, strategy,
+}: {
+  html: string | undefined | null;
+  strategy: 'beforeInteractive' | 'afterInteractive';
+}) {
+  if (!html || !html.trim()) return null;
+  const { tags, scripts } = parseHeadHtml(html);
+  return (
+    <>
+      {tags /* meta/link/title → hoisted into <head> by React */}
+      {scripts.map((s) =>
+        s.attrs.src
+          ? <Script key={s.key} strategy={strategy} {...s.attrs} />
+          : <Script key={s.key} id={s.key} strategy={strategy} dangerouslySetInnerHTML={{ __html: s.inner }} />,
+      )}
+    </>
+  );
+}
+```
+
+Then wire it into the root layout:
+
 ```tsx
 // app/layout.tsx
+import { GlobalScripts } from '@/components/GlobalScripts';
+
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 async function getGlobalScripts() {
@@ -336,24 +413,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body>
-        {/* Header scripts rendered at top of body. <div> is invalid inside <head>,
-            so place here — analytics scripts work identically at the top of <body>. */}
-        {headerScripts && (
-          <div dangerouslySetInnerHTML={{ __html: headerScripts }} />
-        )}
+        <GlobalScripts html={headerScripts} strategy="beforeInteractive" />
         {children}
-        {footerScripts && (
-          <div dangerouslySetInnerHTML={{ __html: footerScripts }} />
-        )}
+        <GlobalScripts html={footerScripts} strategy="afterInteractive" />
       </body>
     </html>
   );
 }
 ```
 
-**Typical use cases:** Google Analytics `<script>`, Google Tag Manager snippet, Search Console meta verification tag, Facebook Pixel.
-
-> **Note:** `<div>` is not valid inside `<head>` — browsers silently move it to `<body>`, causing scripts to run in the wrong context. Placing them at the top of `<body>` is identical in practice for all common analytics tools.
+**Typical use cases:** Google Analytics `<script>`, Google Tag Manager snippet, Search Console meta verification tag, Facebook Pixel. Verification `<meta>` tags now hoist into `<head>` correctly; scripts run via `next/script`.
 
 ---
 
