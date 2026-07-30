@@ -382,6 +382,237 @@ if (strpos($request_uri, '.css') !== false) {
 // Render the application file contents
 echo $response_body;
 ```
+index.php   api
+```php
+<?php
+/**
+ * Reverse-proxy shim for the Docker containers, for servers where the site is
+ * served by LiteSpeed/aaPanel as a PHP site instead of Nginx.
+ *
+ * Prefer a real reverse proxy (see setup-nginx.sh, or a LiteSpeed
+ * `context / { type proxy }`). Use this only when the panel gives you nothing
+ * but a PHP document root. It must forward the request *verbatim* — method,
+ * body and headers — or the app silently half-works:
+ *
+ *   - No method forwarding => every request arrives as GET. The browser's CORS
+ *     preflight (OPTIONS /auth/login) becomes GET /auth/login => 404, which
+ *     Chrome reports as "Response to preflight request doesn't pass access
+ *     control check: It does not have HTTP ok status".
+ *   - No body forwarding => POST/PUT/PATCH arrive empty.
+ *   - Set-Cookie collapsed into one header => refresh-token cookie is lost.
+ *
+ * Deploy: copy this file + .htaccess into the site's document root and set
+ * $BACKEND_PORT to that site's container port.
+ */
+
+// Container port for THIS site: api 8005 | admin 7005 | website 3005 | dashboard 5005
+$BACKEND_PORT = 8005;
+$BACKEND      = 'http://127.0.0.1:' . $BACKEND_PORT;
+
+// Stream the response through untouched — no buffering, no gzip re-encoding.
+ini_set('zlib.output_compression', 'Off');
+while (ob_get_level() > 0) {
+    ob_end_clean();
+}
+
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$uri    = $_SERVER['REQUEST_URI'] ?? '/';
+$url    = $BACKEND . $uri;
+
+/**
+ * Flatten nested $_POST arrays into cURL's `a[b]` field names.
+ */
+function flattenFields($data, $prefix, array &$out)
+{
+    foreach ($data as $key => $value) {
+        $name = $prefix === '' ? (string) $key : $prefix . '[' . $key . ']';
+        if (is_array($value)) {
+            flattenFields($value, $name, $out);
+        } else {
+            $out[$name] = $value;
+        }
+    }
+}
+
+/**
+ * Re-attach uploaded files that PHP already moved to its tmp dir.
+ */
+function appendUploadedFiles(array &$fields)
+{
+    foreach ($_FILES as $name => $file) {
+        if (is_array($file['name'])) {
+            foreach ($file['name'] as $i => $filename) {
+                if ($file['error'][$i] === UPLOAD_ERR_OK) {
+                    $fields[$name . '[' . $i . ']'] =
+                        new CURLFile($file['tmp_name'][$i], $file['type'][$i], $filename);
+                }
+            }
+        } elseif ($file['error'] === UPLOAD_ERR_OK) {
+            $fields[$name] = new CURLFile($file['tmp_name'], $file['type'], $file['name']);
+        }
+    }
+}
+
+/* ── Request headers ───────────────────────────────────────────────────────
+ * Hop-by-hop headers describe this connection, not the proxied one, so they
+ * are not passed on. Accept-Encoding is forced to identity so the body we
+ * stream back is never double-encoded.
+ */
+$skipRequestHeaders = [
+    'content-length', 'connection', 'keep-alive', 'transfer-encoding',
+    'upgrade', 'expect', 'te', 'proxy-connection', 'accept-encoding',
+];
+
+$incoming = [];
+if (function_exists('getallheaders')) {
+    $incoming = getallheaders();
+} else {
+    foreach ($_SERVER as $key => $value) {
+        if (strpos($key, 'HTTP_') === 0) {
+            $name = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
+            $incoming[$name] = $value;
+        }
+    }
+}
+
+// Some LiteSpeed/CGI setups drop Authorization before getallheaders() sees it.
+$hasAuth = false;
+foreach ($incoming as $name => $value) {
+    if (strtolower($name) === 'authorization') {
+        $hasAuth = true;
+        break;
+    }
+}
+if (!$hasAuth) {
+    $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
+    if ($auth) {
+        $incoming['Authorization'] = $auth;
+    }
+}
+
+$headers   = [];
+$forwarded = '';
+foreach ($incoming as $name => $value) {
+    $lower = strtolower($name);
+    if ($lower === 'x-forwarded-for') {
+        $forwarded = $value;
+    }
+    if (!in_array($lower, $skipRequestHeaders, true)) {
+        $headers[] = "$name: $value";
+    }
+}
+$headers[] = 'Accept-Encoding: identity';
+
+// So the backend sees the real client, not 127.0.0.1 (rate limiting, logs).
+$clientIp  = $_SERVER['REMOTE_ADDR'] ?? '';
+$headers[] = 'X-Forwarded-For: ' . ($forwarded !== '' ? "$forwarded, $clientIp" : $clientIp);
+$headers[] = 'X-Real-IP: ' . $clientIp;
+$headers[] = 'X-Forwarded-Proto: ' . ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http');
+$headers[] = 'X-Forwarded-Host: ' . ($_SERVER['HTTP_HOST'] ?? '');
+
+/* ── Request body ─────────────────────────────────────────────────────────
+ * php://input holds the raw body for JSON and friends. For multipart/form-data
+ * PHP has already consumed the stream into $_POST/$_FILES, so the body is
+ * rebuilt from those — cURL then sets its own Content-Type with a fresh
+ * boundary, so the original Content-Type must be dropped.
+ */
+$body          = null;
+$rebuiltFields = null;
+
+if (!in_array($method, ['GET', 'HEAD', 'OPTIONS', 'TRACE'], true)) {
+    $raw = file_get_contents('php://input');
+    if ($raw !== false && $raw !== '') {
+        $body = $raw;
+    } elseif (!empty($_POST) || !empty($_FILES)) {
+        $rebuiltFields = [];
+        flattenFields($_POST, '', $rebuiltFields);
+        appendUploadedFiles($rebuiltFields);
+        $headers = array_values(array_filter($headers, function ($h) {
+            return stripos($h, 'content-type:') !== 0;
+        }));
+    }
+}
+
+/* ── Response ─────────────────────────────────────────────────────────────
+ * First occurrence of a header name replaces, later ones append — otherwise
+ * multiple Set-Cookie headers collapse into one and login breaks.
+ */
+$skipResponseHeaders = [
+    'transfer-encoding', 'connection', 'keep-alive', 'upgrade', 'content-length',
+];
+$seen = [];
+
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_URL            => $url,
+    CURLOPT_CUSTOMREQUEST  => $method,
+    CURLOPT_HTTPHEADER     => $headers,
+    CURLOPT_FOLLOWLOCATION => false,   // relay redirects to the browser as-is
+    CURLOPT_CONNECTTIMEOUT => 10,
+    CURLOPT_TIMEOUT        => 300,     // uploads/backups can be slow
+    CURLOPT_HEADERFUNCTION => function ($ch, $line) use (&$seen, $skipResponseHeaders) {
+        $length  = strlen($line);
+        $trimmed = trim($line);
+
+        if ($trimmed === '') {
+            return $length;
+        }
+
+        // Status line. A redirect/1xx chain can send several — the last wins,
+        // so the header set collected so far is reset with it.
+        if (stripos($trimmed, 'HTTP/') === 0) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $trimmed, $m)) {
+                http_response_code((int) $m[1]);
+            }
+            $seen = [];
+            return $length;
+        }
+
+        $parts = explode(':', $trimmed, 2);
+        if (count($parts) !== 2) {
+            return $length;
+        }
+
+        $name = strtolower(trim($parts[0]));
+        if (in_array($name, $skipResponseHeaders, true)) {
+            return $length;
+        }
+
+        $replace     = !isset($seen[$name]);
+        $seen[$name] = true;
+        header($trimmed, $replace);
+
+        return $length;
+    },
+    CURLOPT_WRITEFUNCTION  => function ($ch, $chunk) {
+        echo $chunk;
+        flush();
+        return strlen($chunk);
+    },
+]);
+
+if ($method === 'HEAD') {
+    curl_setopt($ch, CURLOPT_NOBODY, true);
+}
+if ($rebuiltFields !== null) {
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $rebuiltFields);
+} elseif ($body !== null) {
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+}
+
+if (curl_exec($ch) === false) {
+    $error = curl_error($ch);
+    curl_close($ch);
+    if (!headers_sent()) {
+        http_response_code(502);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Bad Gateway', 'detail' => $error]);
+    }
+    exit;
+}
+
+curl_close($ch);
+```
 
 
 ## Updating the Application
