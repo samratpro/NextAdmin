@@ -320,6 +320,69 @@ location / {
 5. Reload: `/www/server/nginx/sbin/nginx -s reload`
 
 ---
+### Manual apache server Config
+.htaccess
+```
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ index.php [QSA,L]
+```
+index.php in save dir with .htaccess (change port)
+```php
+<?php
+// Capture the exact path and query string requested by the browser
+$request_uri = $_SERVER['REQUEST_URI'];
+
+// Point directly to your running Next.js Docker container port
+$backend_url = 'http://127.0.0.1:5005' . $request_uri;
+
+// Initialize cURL connection
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $backend_url);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HEADER, true);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+
+// Forward original request headers to the container
+$headers = [];
+if (function_exists('getallheaders')) {
+    foreach (getallheaders() as $name => $value) {
+        $headers[] = "$name: $value";
+    }
+}
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+// Execute the proxy request
+$response = curl_exec($ch);
+$header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+// Split headers from response body
+$response_headers = substr($response, 0, $header_size);
+$response_body = substr($response, $header_size);
+
+// Set the response code to match the container
+http_response_code($http_code);
+
+// Relay container headers back to the browser
+foreach (explode("\r\n", $response_headers) as $header) {
+    if (!empty($header) && strpos($header, 'Transfer-Encoding') === false) {
+        header($header);
+    }
+}
+
+// FALLBACK GUARD: Explicitly set MIME types for Next.js assets if headers get stripped
+if (strpos($request_uri, '.css') !== false) {
+    header('Content-Type: text/css; charset=utf-8');
+} elseif (strpos($request_uri, '.js') !== false) {
+    header('Content-Type: application/javascript; charset=utf-8');
+}
+
+// Render the application file contents
+echo $response_body;
+```
+
 
 ## Updating the Application
 

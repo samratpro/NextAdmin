@@ -30,6 +30,21 @@ function getStrippedBody(modelName: string, body: any, isSuperuser: boolean): an
     return newBody;
 }
 
+function sanitizeEmptyFields(metadata: any, body: any): any {
+    const newBody = { ...body };
+    const fields = metadata.model.getFields();
+    for (const [key, field] of Object.entries(fields)) {
+        if (newBody[key] === '') {
+            if ((field as any).options?.nullable) {
+                newBody[key] = null;
+            } else {
+                delete newBody[key];
+            }
+        }
+    }
+    return newBody;
+}
+
 // Helper function to check if model requires superuser access
 function isProtectedAuthModel(modelName: string): boolean {
     return ['User', 'Group', 'Permission'].includes(modelName);
@@ -325,7 +340,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             }
         }
 
-        const body = getStrippedBody(modelName, request.body, !!request.user?.isSuperuser);
+        let body = getStrippedBody(modelName, request.body, !!request.user?.isSuperuser);
+        body = sanitizeEmptyFields(metadata, body);
 
         // Handle password hashing if supported
         const instance = new metadata.model();
@@ -378,7 +394,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             return;
         }
 
-        const body = getStrippedBody(modelName, request.body, !!request.user?.isSuperuser);
+        let body = getStrippedBody(modelName, request.body, !!request.user?.isSuperuser);
+        body = sanitizeEmptyFields(metadata, body);
 
         // Handle password hashing if supported
         if (body.password && typeof (instance as any).setPassword === 'function') {

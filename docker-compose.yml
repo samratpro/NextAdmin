@@ -74,6 +74,8 @@ services:
       - "${ADMIN_PORT}:3000"        # host:container — change ADMIN_PORT in .env only
     networks:
       - frontend
+    volumes:
+      - ./data/uploads/uploads:/app/public/uploads
 
 networks:
   backend:

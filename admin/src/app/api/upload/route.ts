@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const title = formData.get('title') as string | null;
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     if (!ALLOWED_TYPES.includes(file.type)) return NextResponse.json({ error: 'Only image files allowed' }, { status: 400 });
     if (file.size > MAX_SIZE) return NextResponse.json({ error: 'Max 5 MB' }, { status: 400 });
@@ -20,7 +21,12 @@ export async function POST(request: NextRequest) {
     }
 
     const ext = path.extname(file.name) || '.jpg';
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    let baseName = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (title) {
+      baseName = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      baseName = `${baseName}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+    const fileName = `${baseName}${ext}`;
     const filePath = path.join(uploadDir, fileName);
     
     const bytes = await file.arrayBuffer();

@@ -818,7 +818,7 @@ export default function ModelDetailPage() {
                     {/* Upload button + URL input */}
                     <div className="flex gap-2 items-center">
                         <input
-                            type="url"
+                            type="text"
                             value={value || ''}
                             onChange={(e) => setFormData(prev => ({ ...prev, [fieldName]: e.target.value }))}
                             placeholder="https://... or upload below"
@@ -853,6 +853,9 @@ export default function ModelDetailPage() {
                                     try {
                                         const body = new FormData();
                                         body.append('file', file);
+                                        if (formData['title']) {
+                                            body.append('title', formData['title']);
+                                        }
                                         // Next.js API route — admin/src/app/api/upload/route.ts
                                         // Saves to admin/public/uploads/, served at /uploads/<file>
                                         const res = await fetch('/api/upload', {

@@ -39,8 +39,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
 
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
-          <p className="mt-1 text-sm text-gray-500">Sign in to access the dashboard</p>
+          <h1 className="text-2xl font-bold text-gray-900">NextAdmin Panel</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Internal use only — sign in with an admin or staff account
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

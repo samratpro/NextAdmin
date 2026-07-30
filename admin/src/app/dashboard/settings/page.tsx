@@ -259,7 +259,7 @@ export default function SiteSettingsPage() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Site URL</label>
                 <input
-                  type="url"
+                  type="text"
                   value={form.siteUrl}
                   onChange={e => set('siteUrl', e.target.value)}
                   placeholder="https://example.com"

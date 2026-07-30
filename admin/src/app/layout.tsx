@@ -5,8 +5,22 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'NextAdmin Panel - Next.js Admin Framework',
-  description: 'Admin panel built with Node.js, Fastify, and Next.js',
+  title: 'NextAdmin Panel — Internal Use Only',
+  description:
+    'NextAdmin panel for admin and staff accounts only. Internal company tool — not a public website.',
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+      'max-snippet': -1,
+      'max-image-preview': 'none',
+      'max-video-preview': -1,
+    },
+  },
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
