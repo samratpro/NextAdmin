@@ -32,7 +32,7 @@ This guide walks you through connecting Google Drive to the Admin Backup panel s
 
 ## Step 3 — Create OAuth 2.0 Credentials & Download JSON
 
-1. Go to **APIs & Services → Credentials**
+1. Go to **APIs & Services → Credentials** (https://console.cloud.google.com/apis/library/searchconsole.googleapis.com) enable it
 2. Click **+ Create Credentials → OAuth client ID**
 3. If prompted, click **Configure Consent Screen** first:
    - Choose **External** (works for personal accounts)
