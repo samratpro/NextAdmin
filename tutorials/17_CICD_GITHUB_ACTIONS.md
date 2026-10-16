@@ -21,11 +21,11 @@ Site updated — nothing to do manually
 ---
 ## Step 0: Setup new user
 ```bash
-su -
+sudo su -
 sudo adduser 'username'
 groupadd docker
 usermod -aG docker 'username'
-su - 'username'
+sudo su - 'username'
 newgrp docker
 ```
 
