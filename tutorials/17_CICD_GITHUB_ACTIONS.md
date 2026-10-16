@@ -19,6 +19,16 @@ Site updated — nothing to do manually
 ```
 
 ---
+## Step 0: Setup new user
+```bash
+su -
+sudo adduser 'username'
+groupadd docker
+usermod -aG docker 'username'
+su - 'username'
+newgrp docker
+```
+
 
 ## Step 1 — Generate an SSH Key for GitHub
 
